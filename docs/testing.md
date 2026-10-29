@@ -47,3 +47,14 @@ unset HOMELAB_DOCS_API_TOKEN
 ## What this does not prove
 
 A successful container smoke test is not a production deployment or a recovery test. It does not validate Caddy/TLS, remote Windows connectivity, host-specific Proxmox/Unraid/OpenWrt collectors, long-running retention, backup restoration, or recovery procedures. Those checks require their respective test environments and evidence.
+
+
+## Windows recorder checks
+
+Run the dependency-free recorder checks on Windows in both Windows PowerShell 5.1 and PowerShell 7:
+
+```powershell
+.\tests\windows\Invoke-RecorderChecks.ps1
+```
+
+The harness uses synthetic commands and a temporary directory, does not call the Documentor API, and checks syntax, secret redaction, metadata-only queueing, expiry cleanup and queue-count enforcement. It has not yet been run in a Windows runtime. Do not treat its presence as evidence of a passing test.
