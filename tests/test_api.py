@@ -172,3 +172,25 @@ def test_database_file_has_restricted_posix_permissions(client, tmp_path):
     db_file = tmp_path / "homelab.sqlite3"
     assert db_file.exists()
     assert stat.S_IMODE(db_file.stat().st_mode) == 0o600
+
+
+def test_retries_with_same_client_event_id_are_idempotent(client):
+    event = {
+        "client_event_id": "recorder-event-0001",
+        "host_id": "synthetic-host",
+        "event_type": "powershell_command",
+        "summary": "Synthetic retried command",
+        "payload": {"powershell_success": True},
+    }
+    first = client.post("/api/v1/events", headers=auth(), json=event)
+    second = client.post("/api/v1/events", headers=auth(), json=event)
+    assert first.status_code == second.status_code == 200
+    assert first.json()["id"] == second.json()["id"]
+
+    response = client.get(
+        "/api/v1/events",
+        params={"host_id": "synthetic-host"},
+        headers=auth(),
+    )
+    assert response.status_code == 200
+    assert len(response.json()["events"]) == 1
