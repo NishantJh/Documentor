@@ -107,6 +107,6 @@ A procedure is not complete merely because Markdown was generated. It must ident
 
 1. Validate the latest API hardening and migration logic with a manual test run when runner budget permits; do not trigger CI on every push.
 2. Review and test the PowerShell recorder in a disposable Windows session, including redaction, pause/stop, queue retry and idempotent event ingestion.
-3. Add queue quotas/retention and stronger configurable secret filters before regular use.
+3. Validate the new queue quotas/retention and configurable secret filters in Windows PowerShell 5.1 and PowerShell 7; add automated recorder tests before regular use.
 4. When deployment is possible, install the central API on the Proxmox Debian LXC and test the Windows client plus first inventory snapshot end to end.
 5. Only then expand to remote host collectors and event-to-state reconciliation.
