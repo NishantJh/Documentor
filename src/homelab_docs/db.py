@@ -33,6 +33,7 @@ def init_db() -> None:
         c.executescript("""
         CREATE TABLE IF NOT EXISTS events (
           id INTEGER PRIMARY KEY AUTOINCREMENT, host_id TEXT NOT NULL,
+          client_event_id TEXT,
           event_type TEXT NOT NULL, timestamp TEXT NOT NULL, session_id TEXT,
           summary TEXT NOT NULL, payload TEXT NOT NULL, evidence_refs TEXT NOT NULL
         );
@@ -43,76 +44,35 @@ def init_db() -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_snapshots_host_id ON snapshots(host_id, id);
         """)
+        columns = {row["name"] for row in c.execute("PRAGMA table_info(events)").fetchall()}
+        if "client_event_id" not in columns:
+            c.execute("ALTER TABLE events ADD COLUMN client_event_id TEXT")
+        c.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_events_client_event_id "
+            "ON events(client_event_id) WHERE client_event_id IS NOT NULL"
+        )
 
 
 def insert_event(event: dict[str, Any]) -> int:
+    client_event_id = event.get("client_event_id")
     with connect() as c:
         cur = c.execute(
-            "INSERT INTO events(host_id,event_type,timestamp,session_id,summary,payload,evidence_refs) VALUES(?,?,?,?,?,?,?)",
+            "INSERT OR IGNORE INTO events(client_event_id,host_id,event_type,timestamp,session_id,summary,payload,evidence_refs) "
+            "VALUES(?,?,?,?,?,?,?,?)",
             (
-                event["host_id"], event["event_type"], event["timestamp"], event.get("session_id"),
-                event["summary"], json.dumps(event.get("payload", {}), ensure_ascii=False),
+                client_event_id, event["host_id"], event["event_type"], event["timestamp"],
+                event.get("session_id"), event["summary"],
+                json.dumps(event.get("payload", {}), ensure_ascii=False),
                 json.dumps(event.get("evidence_refs", []), ensure_ascii=False),
             ),
         )
-        return int(cur.lastrowid)
+        if cur.rowcount == 1:
+            return int(cur.lastrowid)
+        if client_event_id:
+            row = c.execute(
+                "SELECT id FROM events WHERE client_event_id=?", (client_event_id,)
+            ).fetchone()
+            if row is not None:
+                return int(row["id"])
+        raise sqlite3.IntegrityError("Event insert was ignored without a matching idempotency key")
 
-
-def list_events(host_id: str, limit: int = 100) -> list[dict[str, Any]]:
-    with connect() as c:
-        rows = c.execute(
-            "SELECT * FROM events WHERE host_id=? ORDER BY timestamp DESC,id DESC LIMIT ?",
-            (host_id, limit),
-        ).fetchall()
-    result = []
-    for row in rows:
-        item = dict(row)
-        item["payload"] = json.loads(item["payload"])
-        item["evidence_refs"] = json.loads(item["evidence_refs"])
-        result.append(item)
-    return result
-
-
-def insert_snapshot(snapshot: dict[str, Any]) -> int:
-    with connect() as c:
-        cur = c.execute(
-            "INSERT INTO snapshots(host_id,captured_at,source,state) VALUES(?,?,?,?)",
-            (
-                snapshot["host_id"], snapshot["captured_at"], snapshot["source"],
-                json.dumps(snapshot["state"], sort_keys=True, ensure_ascii=False),
-            ),
-        )
-        return int(cur.lastrowid)
-
-
-def _snapshot_from_row(row: sqlite3.Row | None) -> dict[str, Any] | None:
-    if row is None:
-        return None
-    item = dict(row)
-    item["state"] = json.loads(item["state"])
-    return item
-
-
-def get_snapshot(snapshot_id: int) -> dict[str, Any] | None:
-    with connect() as c:
-        row = c.execute("SELECT * FROM snapshots WHERE id=?", (snapshot_id,)).fetchone()
-    return _snapshot_from_row(row)
-
-
-def previous_snapshot(host_id: str, snapshot_id: int) -> dict[str, Any] | None:
-    """Return the nearest earlier inserted snapshot for this host."""
-    with connect() as c:
-        row = c.execute(
-            "SELECT * FROM snapshots WHERE host_id=? AND id<? ORDER BY id DESC LIMIT 1",
-            (host_id, snapshot_id),
-        ).fetchone()
-    return _snapshot_from_row(row)
-
-
-def latest_snapshots(host_id: str, limit: int = 2) -> list[dict[str, Any]]:
-    with connect() as c:
-        rows = c.execute(
-            "SELECT * FROM snapshots WHERE host_id=? ORDER BY id DESC LIMIT ?",
-            (host_id, limit),
-        ).fetchall()
-    return [item for item in (_snapshot_from_row(row) for row in rows) if item is not None]
