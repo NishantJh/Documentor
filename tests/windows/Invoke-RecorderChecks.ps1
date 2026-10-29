@@ -2,6 +2,9 @@
 # Run from the repository root in Windows PowerShell 5.1 and PowerShell 7:
 #   .\tests\windows\Invoke-RecorderChecks.ps1
 $ErrorActionPreference = 'Stop'
+if ($global:HomelabDocsRecorderState -and $global:HomelabDocsRecorderState.Enabled) {
+    throw 'Run these checks in a separate, disposable PowerShell session; a recorder is already enabled in this session.'
+}
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $recorderPath = Join-Path $repoRoot 'collector\windows\Enable-HomelabDocsRecorder.ps1'
 $uploaderPath = Join-Path $repoRoot 'collector\windows\Send-HomelabDocsQueue.ps1'
