@@ -27,7 +27,7 @@ function Write-UploaderStatus {
     if ($null -ne $LastSuccessUtc) { $lastSuccessText = ([datetime]$LastSuccessUtc).ToString('o') }
     $retryAfterText = $null
     if ($null -ne $RetryAfterUtc) { $retryAfterText = ([datetime]$RetryAfterUtc).ToString('o') }
-    $status = @{
+    $statusDocument = @{
         status = $Status
         updated_utc = [DateTime]::UtcNow.ToString('o')
         last_error = $LastError
@@ -36,7 +36,7 @@ function Write-UploaderStatus {
         process_id = $PID
     }
     $temp = "$statusPath.tmp"
-    [System.IO.File]::WriteAllText($temp, ($status | ConvertTo-Json -Compress), [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::WriteAllText($temp, ($statusDocument | ConvertTo-Json -Compress), [System.Text.UTF8Encoding]::new($false))
     Move-Item -LiteralPath $temp -Destination $statusPath -Force
 }
 
