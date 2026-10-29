@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$ConfigDirectory,
-    [int]$IdleTimeoutSeconds = 60
+    [int]$IdleTimeoutSeconds = 60,
+    [ValidateRange(1, 300)] [int]$RetryDelaySeconds = 15
 )
 
 # Runs in a separate PowerShell process. Never pass tokens as process arguments.
@@ -98,13 +99,13 @@ try {
                 # Do not store request bodies or authorization headers in status.
                 $lastError = $_.Exception.GetType().FullName + ': upload failed'
                 $consecutiveFailures++
-                $retryAfter = [DateTime]::UtcNow.AddSeconds(15)
+                $retryAfter = [DateTime]::UtcNow.AddSeconds($RetryDelaySeconds)
                 Write-UploaderStatus -Status 'retry_wait' -LastError $lastError -LastSuccessUtc $lastSuccess -RetryAfterUtc $retryAfter
                 if ($consecutiveFailures -ge 3) {
                     Write-UploaderStatus -Status 'retry_deferred' -LastError $lastError -LastSuccessUtc $lastSuccess -RetryAfterUtc $retryAfter
                     break
                 }
-                Start-Sleep -Seconds 15
+                Start-Sleep -Seconds $RetryDelaySeconds
                 break
             }
         }
