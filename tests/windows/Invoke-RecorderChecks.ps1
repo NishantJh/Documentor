@@ -74,6 +74,7 @@ try {
     $oldPath = Join-Path $global:HomelabDocsRecorderState.QueueDir 'expired-test-event.json'
     [System.IO.File]::WriteAllText($oldPath, '{}', [System.Text.UTF8Encoding]::new($false))
     (Get-Item -LiteralPath $oldPath).LastWriteTimeUtc = [DateTime]::UtcNow.AddDays(-2)
+    $global:HomelabDocsRecorderState.LastQueueScanUtc = [DateTime]::MinValue
     Apply-HomelabDocsQueuePolicy
     if (Test-Path -LiteralPath $oldPath) { throw 'Expired queue file was not removed.' }
     Write-Host '[PASS] Retention policy removes expired queue files.'
