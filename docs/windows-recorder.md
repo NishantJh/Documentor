@@ -31,15 +31,15 @@ Stop-HomelabDocsRecorder
 ```
 
 - **Pause** skips recording commands while paused.
-- **Resume** resumes recording and attempts to upload queued events.
-- **Stop** restores the previous prompt function where possible and stops recording in the current session. It does not delete queued events.
-- Status shows whether recording is enabled/paused, the number of queued events and the latest upload error.
+- **Resume** resumes recording and asks the background uploader to drain queued events. The upload itself runs outside the prompt hook.
+- **Stop** restores the previous prompt function where possible and stops recording in the current session. It does not delete queued events or forcibly terminate an uploader that is already draining them.
+- Status shows whether recording is enabled/paused, cached queue count/bytes and uploader status including last success, retry-after and the last sanitized error category.
 
 ## Local queue, quotas and retries
 
-Events are written as individual JSON files under `%LOCALAPPDATA%\HomelabDocs\queue`. The recorder attempts to upload queued events after each command, processing at most 20 files per prompt. If the API is unavailable, the failed event remains on disk and the batch stops; the recorder waits 15 seconds before retrying to avoid delaying every prompt during an outage. Each queued event has a stable client event ID so retrying after a lost response does not create duplicate database rows.
+Events are written as individual JSON files under `%LOCALAPPDATA%\HomelabDocs\queue`. The prompt hook only sanitizes command metadata and atomically writes a queue file. It does not make HTTP requests or sleep for retries. A separate PowerShell background job reads the queue and uploads batches of at most 20 events. The uploader uses a per-user mutex to avoid concurrent uploaders, has a three-second request timeout, and retries failed requests with 15-second waits up to three consecutive failures before deferring retries. It exits after 60 seconds with an empty queue. The next recorded event or an explicit resume can start it again; while retry backoff is active, automatic starts are deferred. Each queued event has a stable client event ID so retrying after a lost response does not create duplicate database rows. The background job reads the DPAPI-protected token itself; the interactive recorder does not decrypt or retain the bearer token.
 
-Defaults are 5,000 queued events, 50 MiB total queue size, and 30 days of local queue retention. Expired queue files are deleted when the recorder next tries to write an event. The recorder does **not** evict newer events to make room: when a quota is reached, the current event is not queued and the error is exposed by `Get-HomelabDocsRecorderStatus`. Check status if the API has been unavailable for a while.
+Defaults are 5,000 queued events, 50 MiB total queue size, and 30 days of local queue retention. Expired queue files are checked during queue maintenance, at most once every 30 seconds rather than on every prompt. Queue counts and bytes are cached between scans; quota enforcement is conservative and may temporarily overestimate the queue after background uploads. The recorder does **not** evict newer events to make room: when a quota is reached, the current event is not queued and the error is exposed by `Get-HomelabDocsRecorderStatus`. Check status if the API has been unavailable for a while.
 
 Optional settings belong in `%LOCALAPPDATA%\HomelabDocs\client.json`, alongside the existing `api_url` property:
 
@@ -76,7 +76,7 @@ Until the filter is reviewed against your actual workflows, avoid entering comma
 - The working directory is the directory captured before the command, but nested prompts and custom prompt implementations require testing.
 - The last native exit-code value may be stale for PowerShell cmdlets.
 - There is no automatic startup/profile integration or remote host correlation yet.
-- Queue retention and quotas are implemented but have not been exercised in a real Windows session; expired queued events are deleted according to the configured retention policy.
+- Queue retention, cached quota accounting and background uploads have not been exercised in a real Windows session. Because queue accounting is cached between maintenance scans, simultaneous sessions can briefly race near a quota boundary; the limits are safeguards, not a transactional cross-process quota guarantee.
 - The script has not yet been validated on your Windows workstation. Treat it as experimental until tested with synthetic commands.
 
 ## Validation
@@ -92,7 +92,8 @@ It parses the recorder and exercises built-in/custom redaction, metadata-only qu
 ## Next recorder work
 
 1. Run the harness in Windows PowerShell 5.1 and PowerShell 7, then fix any compatibility issues.
-2. Validate the prompt hook against default and customized prompts and confirm completion-status/working-directory semantics.
-3. Add tests for byte quota, regex timeout, invalid configuration and upload/retry behavior before regular use.
-4. Consider optional bounded output capture only after a separate redaction and consent design; it must remain off by default.
-5. Add explicit task/session labels and target-host metadata.
+2. Test the background job lifecycle, named mutex, retry/defer behavior, queue deletion only after API success, and cross-session behavior against a local synthetic API.
+3. Validate the prompt hook against default and customized prompts and confirm completion-status/working-directory semantics.
+4. Add tests for byte quota, regex timeout, invalid configuration, slow/unavailable API, expired TLS certificates and idempotent upload behavior before regular use.
+5. Consider optional bounded output capture only after a separate redaction and consent design; it must remain off by default.
+6. Add explicit task/session labels and target-host metadata.
