@@ -20,7 +20,7 @@ jobs:
       - name: Check out selected ref
         uses: actions/checkout@v4
         with:
-          ref: \${{ inputs.ref }}
+          ref: ${{ inputs.ref }}
       - name: Run recorder checks in Windows PowerShell 5.1
         shell: powershell
         run: .\tests\windows\Invoke-RecorderChecks.ps1
