@@ -50,7 +50,7 @@ try {
         ConvertFrom-SecureString |
         Set-Content -LiteralPath (Join-Path $configDir 'token.dpapi') -NoNewline
 
-    . $recorderPath
+    . $recorderPath -DisableUploader
 
     $redacted = Protect-HomelabDocsCommand -CommandLine 'tool --private_marker fake-secret-value'
     if ($redacted -notmatch '^\[REDACTED:') { throw 'Custom redaction pattern did not redact the command.' }
@@ -70,6 +70,22 @@ try {
     $queuedEvent = Get-Content -Raw -LiteralPath $queued[0].FullName | ConvertFrom-Json
     if ($queuedEvent.payload.output_capture -ne 'disabled') { throw 'Recorder must keep output capture disabled.' }
     Write-Host '[PASS] Event is queued as metadata only.'
+
+    $originalMaxQueueBytes = $global:HomelabDocsRecorderState.MaxQueueBytes
+    $global:HomelabDocsRecorderState.MaxQueueBytes = $global:HomelabDocsRecorderState.QueueBytes + 1
+    $global:HomelabDocsRecorderState.LastQueueScanUtc = [DateTime]::UtcNow
+    $byteQuotaRejected = $false
+    try {
+        Write-HomelabDocsCommandEvent -CommandLine 'Get-ChildItem -Force' -Succeeded $true -WorkingDirectory $tempRoot -NativeExitCode $null
+    } catch {
+        $byteQuotaRejected = $_.Exception.Message -match 'byte quota'
+    } finally {
+        $global:HomelabDocsRecorderState.MaxQueueBytes = $originalMaxQueueBytes
+    }
+    if (-not $byteQuotaRejected) { throw 'Queue byte quota did not reject an event that would exceed the configured limit.' }
+    $queuedAfterByteCheck = @(Get-ChildItem -LiteralPath $global:HomelabDocsRecorderState.QueueDir -Filter '*.json' -File)
+    if ($queuedAfterByteCheck.Count -ne 1) { throw 'Byte-quota rejection unexpectedly changed the existing queue.' }
+    Write-Host '[PASS] Queue byte quota rejects overflow without deleting existing events.'
 
     $oldPath = Join-Path $global:HomelabDocsRecorderState.QueueDir 'expired-test-event.json'
     [System.IO.File]::WriteAllText($oldPath, '{}', [System.Text.UTF8Encoding]::new($false))
