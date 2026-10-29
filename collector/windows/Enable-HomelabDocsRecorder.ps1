@@ -125,6 +125,8 @@ function global:Start-HomelabDocsUploader {
     if ($state.UploaderJobId) {
         $existingJob = Get-Job -Id $state.UploaderJobId -ErrorAction SilentlyContinue
         if ($existingJob -and $existingJob.State -eq 'Running') { return }
+        if ($existingJob) { Remove-Job -Id $existingJob.Id -Force -ErrorAction SilentlyContinue }
+        $state.UploaderJobId = $null
     }
 
     $statusPath = Join-Path $configDir 'uploader-status.json'
