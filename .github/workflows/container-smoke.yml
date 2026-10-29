@@ -1,12 +1,6 @@
 name: container-smoke
-
 on:
-  push:
-  pull_request:
-
-permissions:
-  contents: read
-
+  workflow_dispatch:
 jobs:
   container-smoke:
     runs-on: ubuntu-latest
