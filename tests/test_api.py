@@ -153,7 +153,7 @@ def test_report_renders_untrusted_summary_as_single_line(client):
         json={
             "host_id": "synthetic-host",
             "event_type": "command",
-            "summary": "safe title\\n## injected heading",
+            "summary": "safe title" + chr(10) + "## injected heading",
         },
     )
     assert response.status_code == 200
