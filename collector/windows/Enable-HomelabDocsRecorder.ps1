@@ -25,12 +25,6 @@ if ($uri.Scheme -ne 'https' -and $uri.Host -notin @('localhost', '127.0.0.1', ':
     throw 'Documentor recorder requires HTTPS for remote connections.'
 }
 
-$secureToken = Get-Content -Raw -LiteralPath $tokenPath | ConvertTo-SecureString
-$tokenPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureToken)
-try { $token = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($tokenPtr) }
-finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($tokenPtr) }
-if ([string]::IsNullOrWhiteSpace($token)) { throw 'The stored Documentor token could not be decrypted.' }
-
 $queueDir = Join-Path $configDir 'queue'
 New-Item -ItemType Directory -Force -Path $queueDir | Out-Null
 $originalPrompt = (Get-Command prompt -CommandType Function -ErrorAction SilentlyContinue).ScriptBlock
@@ -77,7 +71,6 @@ $global:HomelabDocsRecorderState = @{
     Enabled = $true
     Paused = $false
     ApiUrl = $apiUrl
-    Token = $token
     HostId = $env:COMPUTERNAME.ToLowerInvariant()
     SessionId = [Guid]::NewGuid().ToString('N')
     QueueDir = $queueDir
