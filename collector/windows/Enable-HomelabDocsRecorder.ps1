@@ -3,6 +3,8 @@
 # It does not capture command output or screenshots. Commands matching secret filters
 # are redacted before they are written to the local queue.
 
+param([switch]$DisableUploader)
+
 $ErrorActionPreference = 'Stop'
 
 if ($global:HomelabDocsRecorderState -and $global:HomelabDocsRecorderState.Enabled) {
