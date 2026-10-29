@@ -28,6 +28,20 @@ def test_protected_route_fails_closed_without_token(client, monkeypatch):
     assert response.status_code == 503
 
 
+def test_protected_route_rejects_missing_authorization_header(client):
+    response = client.get("/api/v1/events", params={"host_id": "test"})
+    assert response.status_code == 401
+
+
+def test_protected_route_rejects_malformed_authorization_header(client):
+    response = client.get(
+        "/api/v1/events",
+        params={"host_id": "test"},
+        headers={"Authorization": "Basic not-a-bearer-token"},
+    )
+    assert response.status_code == 401
+
+
 def test_protected_route_rejects_invalid_token(client):
     response = client.get(
         "/api/v1/events",
@@ -194,6 +208,35 @@ def test_retries_with_same_client_event_id_are_idempotent(client):
     )
     assert response.status_code == 200
     assert len(response.json()["events"]) == 1
+
+
+def test_idempotency_key_collision_does_not_overwrite_original_event(client):
+    original = {
+        "client_event_id": "recorder-event-collision",
+        "host_id": "synthetic-host",
+        "event_type": "powershell_command",
+        "summary": "Original event",
+        "payload": {"value": "original"},
+    }
+    conflicting_retry = {
+        **original,
+        "summary": "Conflicting retry payload",
+        "payload": {"value": "modified"},
+    }
+    first = client.post("/api/v1/events", headers=auth(), json=original)
+    retry = client.post("/api/v1/events", headers=auth(), json=conflicting_retry)
+    assert first.status_code == retry.status_code == 200
+    assert first.json()["id"] == retry.json()["id"]
+
+    listed = client.get(
+        "/api/v1/events",
+        params={"host_id": "synthetic-host"},
+        headers=auth(),
+    )
+    events = listed.json()["events"]
+    assert len(events) == 1
+    assert events[0]["summary"] == "Original event"
+    assert events[0]["payload"] == {"value": "original"}
 
 
 def test_rejects_naive_event_timestamp(client):
