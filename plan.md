@@ -45,18 +45,22 @@ Build a Windows-first, evidence-backed documentation engine that continuously re
 - [x] Add conservative Markdown draft generation.
 - [x] Add initial Windows inventory client.
 - [x] Add initial CI test workflow.
-- [ ] Confirm current CI is green for the latest commit.
+- [ ] Validate the latest API-hardening changes with the manual test workflow when runner budget permits; earlier branch revisions passed CI.
 - [ ] Run and verify deployment on the Proxmox Debian LXC.
 - [ ] Verify backup and restore of the database.
+- [ ] Verify bounded payloads, timezone-aware timestamps, idempotent event retries, and report escaping on the latest code revision.
 
 ### Stage 1 — Windows recorder
+
+**Current implementation:** an opt-in PowerShell prompt/history recorder preview is in `collector/windows/Enable-HomelabDocsRecorder.ps1`. It records sanitized command metadata, queues events locally and retries uploads. It deliberately does not capture command output or screenshots. It has not yet been validated on a real Windows workstation; do not treat it as production-ready.
 - [ ] Install/start reliably at login or boot with least privilege.
-- [ ] Record PowerShell sessions using supported logging; capture command, timestamp, exit status, working directory, bounded output and session ID.
+- [ ] Validate the current metadata recorder in Windows PowerShell 5.1 and PowerShell 7; verify command, timestamp, success flag, working directory and session ID.
+- [ ] Design and test optional bounded output capture with explicit consent and robust redaction before enabling it.
 - [ ] Support explicit recording sessions for complex GUI work.
 - [ ] Capture event-driven screenshots, not indiscriminate continuous video by default.
 - [ ] Correlate browser/terminal activity to host, service and task where possible.
 - [ ] Provide pause/stop controls, retention settings, exclusion lists and secret redaction.
-- [ ] Submit events reliably with local queueing and retry.
+- [ ] Submit events reliably with local queueing and retry. Client event IDs now support idempotent API retries; validate this end to end.
 - [ ] Clearly distinguish observed activity from inferred GUI actions.
 
 ### Stage 2 — Remote state collectors
@@ -101,8 +105,8 @@ A procedure is not complete merely because Markdown was generated. It must ident
 
 ## Immediate next tasks
 
-1. Confirm CI on the latest source revision and fix issues.
-2. Review and harden API authentication, input validation, storage permissions and deployment instructions.
-3. Deploy to the dedicated Proxmox Debian LXC with persistent storage and off-host backup.
-4. Test Windows client authentication and first inventory snapshot end to end.
-5. Implement the Windows session/event collector before expanding remote collectors.
+1. Validate the latest API hardening and migration logic with a manual test run when runner budget permits; do not trigger CI on every push.
+2. Review and test the PowerShell recorder in a disposable Windows session, including redaction, pause/stop, queue retry and idempotent event ingestion.
+3. Add queue quotas/retention and stronger configurable secret filters before regular use.
+4. When deployment is possible, install the central API on the Proxmox Debian LXC and test the Windows client plus first inventory snapshot end to end.
+5. Only then expand to remote host collectors and event-to-state reconciliation.
