@@ -33,7 +33,7 @@ Stop-HomelabDocsRecorder
 - **Pause** skips recording commands while paused.
 - **Resume** resumes recording and asks the background uploader to drain queued events. The upload itself runs outside the prompt hook.
 - **Stop** restores the previous prompt function where possible and stops recording in the current session. It does not delete queued events or forcibly terminate an uploader that is already draining them.
-- Status shows whether recording is enabled/paused, cached queue count/bytes and uploader status including last success, retry-after and the last sanitized error category.
+- Status shows whether recording is enabled/paused, cached queue count/bytes, quota-related dropped-event count, and uploader status including last success, retry-after and the last sanitized error category.
 
 ## Local queue, quotas and retries
 
