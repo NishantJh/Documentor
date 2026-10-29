@@ -135,6 +135,10 @@ function global:Start-HomelabDocsUploader {
                 $retryAfter = [DateTime]::Parse([string]$status.retry_after_utc).ToUniversalTime()
                 if ([DateTime]::UtcNow -lt $retryAfter) { return }
             }
+            if (-not $Force -and $status.status -in @('configuration_error', 'not_configured', 'worker_error') -and $status.updated_utc) {
+                $statusAge = ([DateTime]::UtcNow - [DateTime]::Parse([string]$status.updated_utc).ToUniversalTime()).TotalSeconds
+                if ($statusAge -lt 60) { return }
+            }
             if ($status.process_id -and $status.status -in @('starting', 'uploading', 'retry_wait')) {
                 $workerProcess = Get-Process -Id ([int]$status.process_id) -ErrorAction SilentlyContinue
                 if ($workerProcess) { return }
