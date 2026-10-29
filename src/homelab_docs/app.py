@@ -38,7 +38,7 @@ def health():
 
 @app.post("/api/v1/events", dependencies=[Depends(require_token)])
 def post_event(event: EventIn):
-    data = event.model_dump()
+    data = event.model_dump(mode="json")
     data["timestamp"] = data["timestamp"] or datetime.now(timezone.utc).isoformat()
     event_id = db.insert_event(data)
     return {"id": event_id, "stored": True}
@@ -54,7 +54,7 @@ def get_events(
 
 @app.post("/api/v1/snapshots", dependencies=[Depends(require_token)])
 def post_snapshot(snapshot: SnapshotIn):
-    data = snapshot.model_dump()
+    data = snapshot.model_dump(mode="json")
     data["captured_at"] = data["captured_at"] or datetime.now(timezone.utc).isoformat()
     snapshot_id = db.insert_snapshot(data)
     return {"id": snapshot_id, "stored": True}
