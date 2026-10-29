@@ -87,7 +87,7 @@ The database lives at /var/lib/documentor/homelab.sqlite3. Back up the database 
 
 ## 6. First Windows client
 
-From the repository checkout on Windows, run collector/windows/Set-HomelabDocsClient.ps1 and enter the HTTPS URL and bearer token. Then run collector/windows/collect-inventory.ps1. The first collector currently submits a bounded inventory snapshot only; it does not record arbitrary desktop activity.
+From the repository checkout on Windows, run collector/windows/Set-HomelabDocsClient.ps1 and enter the HTTPS URL and bearer token. Then run collector/windows/collect-inventory.ps1. The inventory collector submits a bounded Windows inventory snapshot. An opt-in PowerShell command-metadata recorder preview is documented in `docs/windows-recorder.md`; it is not yet validated on your workstation and does not capture command output or screenshots.
 
 ## 7. Operational checks
 
