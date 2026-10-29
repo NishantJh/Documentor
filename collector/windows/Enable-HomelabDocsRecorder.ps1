@@ -47,6 +47,7 @@ $global:HomelabDocsRecorderState = @{
     PreviousWorkingDirectory = (Get-Location).Path
     OriginalPrompt = $originalPrompt
     LastError = $null
+    NextRetryUtc = [DateTime]::MinValue
     ExcludedPatterns = @(
         '(?i)\b(password|passwd|token|secret|api[_-]?key|client[_-]?secret|private[_-]?key|credential)\b',
         '(?i)authorization\s*:',
@@ -73,6 +74,7 @@ function global:Protect-HomelabDocsCommand {
 function global:Send-HomelabDocsQueuedEvents {
     $state = $global:HomelabDocsRecorderState
     if (-not $state -or -not $state.Enabled -or $state.Paused) { return }
+    if ([DateTime]::UtcNow -lt $state.NextRetryUtc) { return }
 
     $files = Get-ChildItem -LiteralPath $state.QueueDir -Filter '*.json' -File -ErrorAction SilentlyContinue | Sort-Object Name | Select-Object -First 20
     foreach ($file in $files) {
@@ -81,8 +83,10 @@ function global:Send-HomelabDocsQueuedEvents {
             $null = Invoke-RestMethod -Method Post -Uri "$($state.ApiUrl)/api/v1/events" -Headers @{ Authorization = "Bearer $($state.Token)" } -ContentType 'application/json' -Body $body -TimeoutSec 3
             Remove-Item -LiteralPath $file.FullName -Force
             $state.LastError = $null
+            $state.NextRetryUtc = [DateTime]::MinValue
         } catch {
             $state.LastError = $_.Exception.Message
+            $state.NextRetryUtc = [DateTime]::UtcNow.AddSeconds(15)
             # Keep the failed item and stop this batch; the next prompt retries it.
             break
         }
