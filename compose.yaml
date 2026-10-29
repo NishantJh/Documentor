@@ -1,0 +1,29 @@
+services:
+  documentor:
+    build:
+      context: .
+    container_name: documentor-test
+    environment:
+      HOMELAB_DOCS_API_TOKEN: ${HOMELAB_DOCS_API_TOKEN:?Set a throwaway HOMELAB_DOCS_API_TOKEN for this test}
+      HOMELAB_DOCS_DB: /var/lib/documentor/homelab.sqlite3
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - documentor-test-data:/var/lib/documentor
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=2).read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  documentor-test-data:
