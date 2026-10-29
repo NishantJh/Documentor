@@ -1,18 +1,32 @@
 # Disposable Test Environment
 
-Documentor can be tested without a Proxmox host or real homelab credentials. The `container-smoke` GitHub Actions workflow builds the production Dockerfile on an ephemeral GitHub-hosted Ubuntu runner, starts a container with a throwaway token and synthetic data, and exercises the API. The runner and container are disposable; no real homelab endpoint is contacted.
+Documentor can be tested without a Proxmox host or real homelab credentials. The manual `container-smoke` GitHub Actions workflow targets the self-hosted Linux x64 runner, builds the production Dockerfile, starts a container with a throwaway token and synthetic data, and exercises the API. It requires Docker Engine access from that runner. No real homelab endpoint is contacted.
+
+The manual `tests` workflow runs the Python test suite on the self-hosted Linux x64 runner. The manual `windows-recorder-checks` workflow runs the recorder harness in Windows PowerShell 5.1 and PowerShell 7 on the native Windows x64 runner.
+
+All three workflows use `workflow_dispatch` only, so they do not run automatically on pushes or pull requests. Dispatch them from the GitHub Actions tab when you intend to use the self-hosted machines.
 
 ## What CI verifies
 
-- The Docker image builds from the repository.
-- The API starts and the health endpoint responds.
+- The Python unit/API tests pass.
+- The Docker image builds and the API starts.
+- The health endpoint responds.
 - Protected endpoints reject requests without a bearer token.
 - A synthetic event can be stored and retrieved.
 - Two synthetic snapshots can be stored and compared.
 - A Markdown draft report is returned with the expected diff.
 - The application runs as a non-root user with a read-only container root filesystem and dropped Linux capabilities.
+- On Windows, the recorder and uploader scripts parse, custom and built-in redaction checks work, metadata-only events are queued, expiry cleanup works, and the queue-count limit is enforced.
 
 The workflow token is test-only. Never copy it into a real deployment.
+
+## Self-hosted runner notes
+
+The Linux runner must have Docker available to the runner account for `container-smoke`. The workflow starts a disposable container named `documentor-ci` and stops it during cleanup. If a previous run is forcibly interrupted, inspect and remove any leftover test container before retrying.
+
+The Windows runner must have Windows PowerShell 5.1 and PowerShell 7 (`pwsh`) installed. The recorder harness uses synthetic data and a temporary directory; it does not start the uploader or call the API.
+
+Self-hosted runners are persistent machines, not disposable hosted VMs. Run only trusted repository workflows on them, avoid exposing production credentials, and review changes before running workflows.
 
 ## Run the same test on a Linux workstation
 
@@ -48,13 +62,12 @@ unset HOMELAB_DOCS_API_TOKEN
 
 A successful container smoke test is not a production deployment or a recovery test. It does not validate Caddy/TLS, remote Windows connectivity, host-specific Proxmox/Unraid/OpenWrt collectors, long-running retention, backup restoration, or recovery procedures. Those checks require their respective test environments and evidence.
 
+## Run Windows recorder checks locally
 
-## Windows recorder checks
-
-Run the dependency-free recorder checks on Windows in both Windows PowerShell 5.1 and PowerShell 7:
+Run the dependency-free recorder checks in separate disposable sessions in both Windows PowerShell 5.1 and PowerShell 7:
 
 ```powershell
 .\tests\windows\Invoke-RecorderChecks.ps1
 ```
 
-The harness must run in a separate disposable PowerShell session and refuses to run if a recorder is already enabled. It uses synthetic commands and a temporary directory, does not start the uploader or call the API, and checks both script parsers, prompt/API separation, redaction, metadata-only queueing, expiry cleanup and queue-count enforcement. It has not yet been run in a Windows runtime. Do not treat its presence as evidence of a passing test.
+The harness refuses to run if a recorder is already enabled in the session. It does not start the uploader or call the API. A workflow definition is not evidence of a passing test; confirm the run result in GitHub Actions.
