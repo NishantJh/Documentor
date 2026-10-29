@@ -4,7 +4,7 @@ from typing import Any
 
 def _inline(value: Any) -> str:
     """Render untrusted values as a single-line Markdown code span."""
-    text = str(value).replace("\r", " ").replace("\n", " ").replace("`", "\\`")
+    text = str(value).replace("\r", " ").replace("\n", " ").replace("`", "'")
     return f"`{text}`"
 
 
