@@ -22,12 +22,16 @@ function Write-UploaderStatus {
         [object]$LastSuccessUtc = $null,
         [object]$RetryAfterUtc = $null
     )
+    $lastSuccessText = $null
+    if ($null -ne $LastSuccessUtc) { $lastSuccessText = ([datetime]$LastSuccessUtc).ToString('o') }
+    $retryAfterText = $null
+    if ($null -ne $RetryAfterUtc) { $retryAfterText = ([datetime]$RetryAfterUtc).ToString('o') }
     $status = @{
         status = $Status
         updated_utc = [DateTime]::UtcNow.ToString('o')
         last_error = $LastError
-        last_success_utc = if ($null -ne $LastSuccessUtc) { ([datetime]$LastSuccessUtc).ToString('o') } else { $null }
-        retry_after_utc = if ($null -ne $RetryAfterUtc) { ([datetime]$RetryAfterUtc).ToString('o') } else { $null }
+        last_success_utc = $lastSuccessText
+        retry_after_utc = $retryAfterText
         process_id = $PID
     }
     $temp = "$statusPath.tmp"
