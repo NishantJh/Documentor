@@ -338,7 +338,7 @@ function global:prompt {
     }
 }
 
-Start-HomelabDocsUploader
+if (-not $DisableUploader) { Start-HomelabDocsUploader }
 Write-Host 'Documentor recorder enabled for this PowerShell session.'
 Write-Host 'Commands are queued locally; a separate background job uploads metadata. Output and screenshots are not captured.'
 Write-Host 'Use Pause-HomelabDocsRecorder, Resume-HomelabDocsRecorder, Get-HomelabDocsRecorderStatus, or Stop-HomelabDocsRecorder.'
