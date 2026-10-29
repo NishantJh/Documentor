@@ -72,7 +72,11 @@ try {
     Write-Host '[PASS] Event is queued as metadata only.'
 
     $originalMaxQueueBytes = $global:HomelabDocsRecorderState.MaxQueueBytes
-    $global:HomelabDocsRecorderState.MaxQueueBytes = $global:HomelabDocsRecorderState.QueueBytes + 1
+    $originalQueueBytes = $global:HomelabDocsRecorderState.QueueBytes
+    $global:HomelabDocsRecorderState.MaxQueueBytes = 1048576
+    # Simulate existing queue usage near capacity so the new event exceeds the aggregate
+    # byte quota while remaining individually smaller than the configured maximum.
+    $global:HomelabDocsRecorderState.QueueBytes = $global:HomelabDocsRecorderState.MaxQueueBytes - 100
     $global:HomelabDocsRecorderState.LastQueueScanUtc = [DateTime]::UtcNow
     $byteQuotaRejected = $false
     try {
@@ -81,6 +85,7 @@ try {
         $byteQuotaRejected = $_.Exception.Message -match 'byte quota'
     } finally {
         $global:HomelabDocsRecorderState.MaxQueueBytes = $originalMaxQueueBytes
+        $global:HomelabDocsRecorderState.QueueBytes = $originalQueueBytes
     }
     if (-not $byteQuotaRejected) { throw 'Queue byte quota did not reject an event that would exceed the configured limit.' }
     $queuedAfterByteCheck = @(Get-ChildItem -LiteralPath $global:HomelabDocsRecorderState.QueueDir -Filter '*.json' -File)
