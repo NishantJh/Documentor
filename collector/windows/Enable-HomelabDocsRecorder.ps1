@@ -109,25 +109,64 @@ function global:Protect-HomelabDocsCommand {
     return $clean
 }
 
-function global:Send-HomelabDocsQueuedEvents {
-    $state = $global:HomelabDocsRecorderState
-    if (-not $state -or -not $state.Enabled -or $state.Paused) { return }
-    if ([DateTime]::UtcNow -lt $state.NextRetryUtc) { return }
+function global:Start-HomelabDocsUploader {
+    param([switch]$Force)
 
-    $files = Get-ChildItem -LiteralPath $state.QueueDir -Filter '*.json' -File -ErrorAction SilentlyContinue | Sort-Object Name | Select-Object -First 20
-    foreach ($file in $files) {
+    $state = $global:HomelabDocsRecorderState
+    if (-not $state -or -not (Test-Path -LiteralPath $state.QueueDir)) { return }
+    $queueFiles = @(Get-ChildItem -LiteralPath $state.QueueDir -Filter '*.json' -File -ErrorAction SilentlyContinue | Select-Object -First 1)
+    if ($queueFiles.Count -eq 0) { return }
+
+    if ($state.UploaderJobId) {
+        $existingJob = Get-Job -Id $state.UploaderJobId -ErrorAction SilentlyContinue
+        if ($existingJob -and $existingJob.State -eq 'Running') { return }
+    }
+
+    $statusPath = Join-Path $configDir 'uploader-status.json'
+    if (-not $Force -and (Test-Path -LiteralPath $statusPath)) {
         try {
-            $body = [System.IO.File]::ReadAllText($file.FullName)
-            $null = Invoke-RestMethod -Method Post -Uri "$($state.ApiUrl)/api/v1/events" -Headers @{ Authorization = "Bearer $($state.Token)" } -ContentType 'application/json' -Body $body -TimeoutSec 3
-            Remove-Item -LiteralPath $file.FullName -Force
-            $state.LastError = $null
-            $state.NextRetryUtc = [DateTime]::MinValue
+            $status = Get-Content -Raw -LiteralPath $statusPath | ConvertFrom-Json
+            if ($status.retry_after_utc) {
+                $retryAfter = [DateTime]::Parse([string]$status.retry_after_utc).ToUniversalTime()
+                if ([DateTime]::UtcNow -lt $retryAfter) { return }
+            }
         } catch {
-            $state.LastError = $_.Exception.Message
-            $state.NextRetryUtc = [DateTime]::UtcNow.AddSeconds(15)
-            # Keep the failed item and stop this batch; the next prompt retries it.
-            break
+            # An unreadable/stale status file must not prevent queue delivery.
         }
+    }
+
+    $workerPath = Join-Path $PSScriptRoot 'Send-HomelabDocsQueue.ps1'
+    if (-not (Test-Path -LiteralPath $workerPath)) {
+        $state.LastError = 'Background uploader script is missing.'
+        return
+    }
+    try {
+        $job = Start-Job -FilePath $workerPath -ArgumentList $configDir -ErrorAction Stop
+        $state.UploaderJobId = $job.Id
+        $state.LastUploaderStartUtc = [DateTime]::UtcNow
+        $state.LastError = $null
+    } catch {
+        # Queueing remains successful even if the background job cannot start.
+        $state.LastError = 'Could not start background uploader: ' + $_.Exception.GetType().FullName
+    }
+}
+
+function global:Get-HomelabDocsUploaderStatus {
+    $statusPath = Join-Path $configDir 'uploader-status.json'
+    if (-not (Test-Path -LiteralPath $statusPath)) {
+        return [pscustomobject]@{ Status = 'not_started'; LastSuccessUtc = $null; RetryAfterUtc = $null; LastError = $null }
+    }
+    try {
+        $status = Get-Content -Raw -LiteralPath $statusPath | ConvertFrom-Json
+        return [pscustomobject]@{
+            Status = $status.status
+            LastSuccessUtc = $status.last_success_utc
+            RetryAfterUtc = $status.retry_after_utc
+            LastError = $status.last_error
+            ProcessId = $status.process_id
+        }
+    } catch {
+        return [pscustomobject]@{ Status = 'status_unavailable'; LastSuccessUtc = $null; RetryAfterUtc = $null; LastError = 'Uploader status file could not be read.' }
     }
 }
 
