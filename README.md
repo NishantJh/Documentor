@@ -17,7 +17,7 @@ Target systems include Windows, Proxmox, Unraid, Incus, OpenWrt and Docker-hoste
 - **Local queue and background uploader:** the interactive recorder queues JSON event files locally; a separate PowerShell background job uploads batches, with a per-user mutex, request timeout and retry/defer behaviour.
 - **Queue safeguards:** configurable event/byte limits, retention and additive custom redaction patterns. The queue does not evict newer events to make room.
 - **API input hardening:** bounded payload sizes/depth, strict schemas, timezone-aware timestamps, idempotent event retries and Markdown output sanitization.
-- **Deployment and validation documentation:** includes a Proxmox Debian LXC deployment guide, security notes and a Windows recorder test harness.
+- **Deployment and validation documentation:** includes a Proxmox Debian LXC deployment guide, security notes and Windows recorder/uploader validation harnesses.
 
 ## Not implemented or not yet verified
 
@@ -97,13 +97,14 @@ The queue defaults are 5,000 events, 50 MiB and 30 days of retention. These can 
 
 ### 5. Validate the recorder
 
-Run the harness in a separate, disposable PowerShell session from the repository root, in both Windows PowerShell 5.1 and PowerShell 7:
+Run both checks from the repository root in separate, disposable sessions, in Windows PowerShell 5.1 and PowerShell 7:
 
 ```powershell
 .\tests\windows\Invoke-RecorderChecks.ps1
+.\tests\windows\Test-UploaderRetry.ps1
 ```
 
-The harness uses synthetic data and does not send API requests. It has not yet been executed in a Windows runtime; its presence in the repository does not mean it has passed. See [testing documentation](docs/testing.md) for scope and limitations.
+The recorder harness uses synthetic data and does not start the uploader. The separate uploader test uses a temporary DPAPI token and a loopback-only synthetic server that returns one temporary failure before succeeding; it verifies retry identity and queue cleanup without contacting the real API. These updated checks have not yet been run on the latest commit, so their presence is not evidence of a pass. See [testing documentation](docs/testing.md) for scope and limitations.
 
 ## Local development
 
