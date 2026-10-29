@@ -71,6 +71,8 @@ $global:HomelabDocsRecorderState = @{
     Enabled = $true
     Paused = $false
     ApiUrl = $apiUrl
+    ConfigDir = $configDir
+    UploaderPath = (Join-Path $PSScriptRoot 'Send-HomelabDocsQueue.ps1')
     HostId = $env:COMPUTERNAME.ToLowerInvariant()
     SessionId = [Guid]::NewGuid().ToString('N')
     QueueDir = $queueDir
@@ -129,7 +131,7 @@ function global:Start-HomelabDocsUploader {
         $state.UploaderJobId = $null
     }
 
-    $statusPath = Join-Path $configDir 'uploader-status.json'
+    $statusPath = Join-Path $state.ConfigDir 'uploader-status.json'
     if (-not $Force -and (Test-Path -LiteralPath $statusPath)) {
         try {
             $status = Get-Content -Raw -LiteralPath $statusPath | ConvertFrom-Json
@@ -150,7 +152,7 @@ function global:Start-HomelabDocsUploader {
         }
     }
 
-    $workerPath = Join-Path $PSScriptRoot 'Send-HomelabDocsQueue.ps1'
+    $workerPath = $state.UploaderPath
     if (-not (Test-Path -LiteralPath $workerPath)) {
         $state.LastError = 'Background uploader script is missing.'
         return
@@ -167,7 +169,8 @@ function global:Start-HomelabDocsUploader {
 }
 
 function global:Get-HomelabDocsUploaderStatus {
-    $statusPath = Join-Path $configDir 'uploader-status.json'
+    $state = $global:HomelabDocsRecorderState
+    $statusPath = Join-Path $state.ConfigDir 'uploader-status.json'
     if (-not (Test-Path -LiteralPath $statusPath)) {
         return [pscustomobject]@{ Status = 'not_started'; LastSuccessUtc = $null; RetryAfterUtc = $null; LastError = $null }
     }
