@@ -35,11 +35,32 @@ Stop-HomelabDocsRecorder
 - **Stop** restores the previous prompt function where possible and stops recording in the current session. It does not delete queued events.
 - Status shows whether recording is enabled/paused, the number of queued events and the latest upload error.
 
-## Local queue and retries
+## Local queue, quotas and retries
 
 Events are written as individual JSON files under `%LOCALAPPDATA%\HomelabDocs\queue`. The recorder attempts to upload queued events after each command, processing at most 20 files per prompt. If the API is unavailable, the failed event remains on disk and the batch stops; the recorder waits 15 seconds before retrying to avoid delaying every prompt during an outage. Each queued event has a stable client event ID so retrying after a lost response does not create duplicate database rows.
 
-The queue is local evidence and can contain command text after redaction. Protect the Windows user account and do not copy the queue into Git or share it casually. Queue retention and disk quotas are not yet implemented.
+Defaults are 5,000 queued events, 50 MiB total queue size, and 30 days of local queue retention. Expired queue files are deleted when the recorder next tries to write an event. The recorder does **not** evict newer events to make room: when a quota is reached, the current event is not queued and the error is exposed by `Get-HomelabDocsRecorderStatus`. Check status if the API has been unavailable for a while.
+
+Optional settings belong in `%LOCALAPPDATA%\HomelabDocs\client.json`, alongside the existing `api_url` property:
+
+```json
+{
+  "api_url": "https://documentor.example.internal",
+  "recorder": {
+    "max_queued_events": 5000,
+    "max_queue_bytes": 52428800,
+    "retention_days": 30,
+    "redaction_patterns": [
+      "(?i)my_internal_secret_flag\\s+\\S+",
+      "(?i)company-token-[A-Za-z0-9]+"
+    ]
+  }
+}
+```
+
+The limits are validated: event count 100–50,000; queue size 1 MiB–2 GiB; retention 1–365 days. `redaction_patterns` is an optional array of up to 50 regular expressions, each at most 256 characters. A command matching any default or custom pattern is replaced in full before it is written locally. Each regex match has a 100 ms timeout; a timeout fails closed and redacts the command. Custom filters are additive and cannot disable built-in filters.
+
+The queue is local evidence and can contain command text after redaction. Protect the Windows user account and do not copy the queue into Git or share it casually. Retention deletes expired local queue files, so choose a policy consistent with your evidence-retention needs.
 
 ## Secret filtering
 
@@ -54,14 +75,15 @@ Until the filter is reviewed against your actual workflows, avoid entering comma
 - It records command completion time, not an exact start time.
 - The working directory is the directory captured before the command, but nested prompts and custom prompt implementations require testing.
 - The last native exit-code value may be stale for PowerShell cmdlets.
-- There is no automatic startup/profile integration, queue quota, retention policy, or remote host correlation yet.
+- There is no automatic startup/profile integration or remote host correlation yet.
+- Queue retention and quotas are implemented but have not been exercised in a real Windows session; expired queued events are deleted according to the configured retention policy.
 - The script has not yet been validated on your Windows workstation. Treat it as experimental until tested with synthetic commands.
 
 ## Next recorder work
 
 1. Add automated PowerShell syntax checks where an available local runner permits them.
 2. Validate the prompt hook against default and customized prompts in Windows PowerShell 5.1 and PowerShell 7.
-3. Add a configurable queue quota and retention policy.
-4. Improve secret filtering with tests and user-configurable exclusions.
+3. Validate queue quota, retention and configurable secret filtering in Windows PowerShell 5.1 and PowerShell 7.
+4. Add automated tests for recorder behavior and broaden secret-filter test cases.
 5. Consider optional bounded output capture only after a separate redaction and consent design; it must remain off by default.
 6. Add explicit task/session labels and target-host metadata.
