@@ -194,3 +194,17 @@ def test_retries_with_same_client_event_id_are_idempotent(client):
     )
     assert response.status_code == 200
     assert len(response.json()["events"]) == 1
+
+
+def test_rejects_naive_event_timestamp(client):
+    response = client.post(
+        "/api/v1/events",
+        headers=auth(),
+        json={
+            "host_id": "synthetic-host",
+            "event_type": "command",
+            "summary": "naive timestamp",
+            "timestamp": "2026-10-29T12:00:00",
+        },
+    )
+    assert response.status_code == 422
