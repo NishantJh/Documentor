@@ -1,0 +1,53 @@
+name: container-smoke
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build isolated test image
+        run: docker build --tag documentor:ci .
+      - name: Start disposable test container
+        env:
+          HOMELAB_DOCS_API_TOKEN: ci-only-throwaway-token-not-for-production-0123456789
+        run: |
+          docker run --detach --rm \
+            --name documentor-ci \
+            --publish 127.0.0.1:8765:8765 \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,size=16m \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --env HOMELAB_DOCS_API_TOKEN \
+            --env HOMELAB_DOCS_DB=/tmp/homelab.sqlite3 \
+            documentor:ci
+      - name: Wait for API health
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8765/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs documentor-ci
+          exit 1
+      - name: Exercise API end to end with synthetic data
+        env:
+          HOMELAB_DOCS_API_TOKEN: ci-only-throwaway-token-not-for-production-0123456789
+        run: bash scripts/smoke-test.sh
+      - name: Verify container stayed healthy
+        if: always()
+        run: |
+          docker inspect --format='status={{.State.Status}} exit={{.State.ExitCode}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' documentor-ci || true
+          docker logs documentor-ci || true
+      - name: Stop disposable container
+        if: always()
+        run: docker stop documentor-ci || true
