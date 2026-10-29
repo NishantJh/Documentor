@@ -107,3 +107,68 @@ def test_snapshot_diff_and_report(client):
 def test_missing_snapshot_returns_404(client):
     response = client.get("/api/v1/snapshots/9999/diff", headers=auth())
     assert response.status_code == 404
+
+
+def test_rejects_oversized_event_payload(client):
+    response = client.post(
+        "/api/v1/events",
+        headers=auth(),
+        json={
+            "host_id": "synthetic-host",
+            "event_type": "command",
+            "summary": "oversized synthetic payload",
+            "payload": {"output": "x" * (256 * 1024 + 1)},
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_rejects_unknown_event_fields(client):
+    response = client.post(
+        "/api/v1/events",
+        headers=auth(),
+        json={
+            "host_id": "synthetic-host",
+            "event_type": "command",
+            "summary": "unexpected field",
+            "unreviewed": "must not be silently accepted",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_bearer_scheme_is_case_insensitive(client):
+    response = client.get(
+        "/api/v1/events",
+        params={"host_id": "synthetic-host"},
+        headers={"Authorization": "bEaReR test-token-that-is-long-enough-for-tests"},
+    )
+    assert response.status_code == 200
+
+
+def test_report_renders_untrusted_summary_as_single_line(client):
+    response = client.post(
+        "/api/v1/events",
+        headers=auth(),
+        json={
+            "host_id": "synthetic-host",
+            "event_type": "command",
+            "summary": "safe title\\n## injected heading",
+        },
+    )
+    assert response.status_code == 200
+    report = client.post("/api/v1/reports/synthetic-host", headers=auth())
+    assert report.status_code == 200
+    assert "## injected heading" not in report.text
+    assert "safe title ## injected heading" in report.text
+
+
+def test_database_file_has_restricted_posix_permissions(client, tmp_path):
+    import os
+    import stat
+
+    if os.name != "posix":
+        pytest.skip("POSIX file permissions are not available on this platform")
+    db_file = tmp_path / "homelab.sqlite3"
+    assert db_file.exists()
+    assert stat.S_IMODE(db_file.stat().st_mode) == 0o600
