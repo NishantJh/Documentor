@@ -250,6 +250,7 @@ function global:Get-HomelabDocsRecorderStatus {
         RetentionDays = $state.RetentionDays
         SessionId = $state.SessionId
         LastError = $state.LastError
+        Uploader = (Get-HomelabDocsUploaderStatus)
         OutputCapture = 'disabled'
     }
 }
@@ -262,7 +263,7 @@ function global:Pause-HomelabDocsRecorder {
 function global:Resume-HomelabDocsRecorder {
     if ($global:HomelabDocsRecorderState) {
         $global:HomelabDocsRecorderState.Paused = $false
-        Send-HomelabDocsQueuedEvents
+        Start-HomelabDocsUploader -Force
     }
     Write-Host 'Documentor recording resumed.'
 }
@@ -276,7 +277,6 @@ function global:Stop-HomelabDocsRecorder {
     } else {
         Remove-Item Function:global:prompt -ErrorAction SilentlyContinue
     }
-    $state.Token = $null
     Write-Host 'Documentor recording stopped for this PowerShell session. Queued events remain on disk.'
 }
 
@@ -294,7 +294,7 @@ function global:prompt {
             if (-not [string]::IsNullOrWhiteSpace($line)) {
                 try {
                     Write-HomelabDocsCommandEvent -CommandLine $line -Succeeded ([bool]$lastSucceeded) -WorkingDirectory ([string]$state.PreviousWorkingDirectory) -NativeExitCode $nativeExitCode
-                    Send-HomelabDocsQueuedEvents
+                    Start-HomelabDocsUploader
                 } catch {
                     $state.LastError = $_.Exception.Message
                 }
@@ -310,6 +310,7 @@ function global:prompt {
     }
 }
 
+Start-HomelabDocsUploader
 Write-Host 'Documentor recorder enabled for this PowerShell session.'
-Write-Host 'Commands are recorded as metadata only; command output and screenshots are not captured.'
+Write-Host 'Commands are queued locally; a separate background job uploads metadata. Output and screenshots are not captured.'
 Write-Host 'Use Pause-HomelabDocsRecorder, Resume-HomelabDocsRecorder, Get-HomelabDocsRecorderStatus, or Stop-HomelabDocsRecorder.'
