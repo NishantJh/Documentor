@@ -37,7 +37,7 @@ Stop-HomelabDocsRecorder
 
 ## Local queue and retries
 
-Events are written as individual JSON files under `%LOCALAPPDATA%\HomelabDocs\queue`. The recorder attempts to upload queued events after each command, processing at most 20 files per prompt. If the API is unavailable, the failed event remains on disk and the batch stops; a later prompt retries it. Each queued event has a stable client event ID so retrying after a lost response does not create duplicate database rows.
+Events are written as individual JSON files under `%LOCALAPPDATA%\HomelabDocs\queue`. The recorder attempts to upload queued events after each command, processing at most 20 files per prompt. If the API is unavailable, the failed event remains on disk and the batch stops; the recorder waits 15 seconds before retrying to avoid delaying every prompt during an outage. Each queued event has a stable client event ID so retrying after a lost response does not create duplicate database rows.
 
 The queue is local evidence and can contain command text after redaction. Protect the Windows user account and do not copy the queue into Git or share it casually. Queue retention and disk quotas are not yet implemented.
 
