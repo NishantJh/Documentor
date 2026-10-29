@@ -2,7 +2,7 @@
 import json
 from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
 
 MAX_JSON_DEPTH = 24
@@ -36,7 +36,7 @@ class EventIn(BaseModel):
     host_id: str = Field(min_length=1, max_length=200)
     client_event_id: str | None = Field(default=None, min_length=1, max_length=100)
     event_type: str = Field(min_length=1, max_length=100)
-    timestamp: str | None = Field(default=None, max_length=64)
+    timestamp: AwareDatetime | None = None
     session_id: str | None = Field(default=None, max_length=200)
     summary: str = Field(min_length=1, max_length=4000)
     payload: dict[str, Any] = Field(default_factory=dict)
@@ -54,7 +54,7 @@ class SnapshotIn(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     host_id: str = Field(min_length=1, max_length=200)
-    captured_at: str | None = Field(default=None, max_length=64)
+    captured_at: AwareDatetime | None = None
     source: str = Field(default="manual", min_length=1, max_length=200)
     state: dict[str, Any]
 
