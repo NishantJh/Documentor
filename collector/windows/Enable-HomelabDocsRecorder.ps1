@@ -130,6 +130,10 @@ function global:Start-HomelabDocsUploader {
                 $retryAfter = [DateTime]::Parse([string]$status.retry_after_utc).ToUniversalTime()
                 if ([DateTime]::UtcNow -lt $retryAfter) { return }
             }
+            if ($status.process_id -and $status.status -in @('starting', 'uploading', 'retry_wait')) {
+                $workerProcess = Get-Process -Id ([int]$status.process_id) -ErrorAction SilentlyContinue
+                if ($workerProcess) { return }
+            }
         } catch {
             # An unreadable/stale status file must not prevent queue delivery.
         }
