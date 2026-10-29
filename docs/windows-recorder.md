@@ -64,7 +64,7 @@ The queue is local evidence and can contain command text after redaction. Protec
 
 ## Secret filtering
 
-Commands containing common sensitive terms such as password, token, secret, API key, credentials, private key, or Authorization headers are replaced with a generic redaction marker before local persistence. Commands with common password/token CLI flags are also redacted. This is intentionally conservative, but **heuristic redaction is not a guarantee**: secrets can be expressed in unexpected ways.
+Commands matching built-in sensitive-term, credential-assignment, bearer-token, CLI-flag and private-key patterns are replaced with a generic redaction marker before local persistence. Optional user-defined regex patterns can be added in `client.json`; they are additive and have a per-match timeout. This is intentionally conservative, but **heuristic redaction is not a guarantee**: secrets can be expressed in unexpected ways.
 
 Until the filter is reviewed against your actual workflows, avoid entering commands that contain credentials while recording. Use the pause control before running a sensitive command. Do not rely on this recorder as a secret-management boundary.
 
@@ -79,11 +79,20 @@ Until the filter is reviewed against your actual workflows, avoid entering comma
 - Queue retention and quotas are implemented but have not been exercised in a real Windows session; expired queued events are deleted according to the configured retention policy.
 - The script has not yet been validated on your Windows workstation. Treat it as experimental until tested with synthetic commands.
 
+## Validation
+
+A dependency-free Windows test harness is provided. From the repository root, run it in Windows PowerShell 5.1 and PowerShell 7:
+
+```powershell
+.\tests\windows\Invoke-RecorderChecks.ps1
+```
+
+It parses the recorder and exercises built-in/custom redaction, metadata-only queueing, expiry cleanup and count-quota behavior using synthetic temporary files. It does not send API requests. It has been added to the repository but has **not yet been executed** in either PowerShell runtime. These checks do not replace a live API integration test.
+
 ## Next recorder work
 
-1. Add automated PowerShell syntax checks where an available local runner permits them.
-2. Validate the prompt hook against default and customized prompts in Windows PowerShell 5.1 and PowerShell 7.
-3. Validate queue quota, retention and configurable secret filtering in Windows PowerShell 5.1 and PowerShell 7.
-4. Add automated tests for recorder behavior and broaden secret-filter test cases.
-5. Consider optional bounded output capture only after a separate redaction and consent design; it must remain off by default.
-6. Add explicit task/session labels and target-host metadata.
+1. Run the harness in Windows PowerShell 5.1 and PowerShell 7, then fix any compatibility issues.
+2. Validate the prompt hook against default and customized prompts and confirm completion-status/working-directory semantics.
+3. Add tests for byte quota, regex timeout, invalid configuration and upload/retry behavior before regular use.
+4. Consider optional bounded output capture only after a separate redaction and consent design; it must remain off by default.
+5. Add explicit task/session labels and target-host metadata.
