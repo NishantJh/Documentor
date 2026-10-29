@@ -54,7 +54,7 @@ Build a Windows-first, evidence-backed documentation engine that continuously re
 
 **Current implementation:** an opt-in PowerShell prompt/history recorder preview is in `collector/windows/Enable-HomelabDocsRecorder.ps1`. It records sanitized command metadata, queues events locally and retries uploads. It deliberately does not capture command output or screenshots. It has not yet been validated on a real Windows workstation; do not treat it as production-ready.
 - [ ] Install/start reliably at login or boot with least privilege.
-- [ ] Validate the current metadata recorder in Windows PowerShell 5.1 and PowerShell 7; verify command, timestamp, success flag, working directory and session ID.
+- [ ] Run `tests/windows/Invoke-RecorderChecks.ps1` in Windows PowerShell 5.1 and PowerShell 7; verify command, timestamp, success flag, working directory and session ID.
 - [ ] Design and test optional bounded output capture with explicit consent and robust redaction before enabling it.
 - [ ] Support explicit recording sessions for complex GUI work.
 - [ ] Capture event-driven screenshots, not indiscriminate continuous video by default.
@@ -107,6 +107,6 @@ A procedure is not complete merely because Markdown was generated. It must ident
 
 1. Validate the latest API hardening and migration logic with a manual test run when runner budget permits; do not trigger CI on every push.
 2. Review and test the PowerShell recorder in a disposable Windows session, including redaction, pause/stop, queue retry and idempotent event ingestion.
-3. Validate the new queue quotas/retention and configurable secret filters in Windows PowerShell 5.1 and PowerShell 7; add automated recorder tests before regular use.
+3. Run the new Windows recorder validation harness in PowerShell 5.1 and PowerShell 7; extend it for byte quotas, invalid configuration and upload/retry behavior before regular use.
 4. When deployment is possible, install the central API on the Proxmox Debian LXC and test the Windows client plus first inventory snapshot end to end.
 5. Only then expand to remote host collectors and event-to-state reconciliation.
