@@ -4,6 +4,7 @@
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $recorderPath = Join-Path $repoRoot 'collector\windows\Enable-HomelabDocsRecorder.ps1'
+$uploaderPath = Join-Path $repoRoot 'collector\windows\Send-HomelabDocsQueue.ps1'
 $tokens = $null
 $parseErrors = $null
 [System.Management.Automation.Language.Parser]::ParseFile($recorderPath, [ref]$tokens, [ref]$parseErrors) | Out-Null
@@ -12,6 +13,18 @@ if ($parseErrors.Count -gt 0) {
     throw "Recorder syntax validation failed: $details"
 }
 Write-Host '[PASS] Recorder parses without syntax errors.'
+$uploaderTokens = $null
+$uploaderParseErrors = $null
+[System.Management.Automation.Language.Parser]::ParseFile($uploaderPath, [ref]$uploaderTokens, [ref]$uploaderParseErrors) | Out-Null
+if ($uploaderParseErrors.Count -gt 0) {
+    $details = ($uploaderParseErrors | ForEach-Object { $_.Message }) -join '; '
+    throw "Uploader syntax validation failed: $details"
+}
+Write-Host '[PASS] Background uploader parses without syntax errors.'
+if ((Get-Content -Raw -LiteralPath $recorderPath) -match 'Invoke-RestMethod') {
+    throw 'Network requests must not be made by the interactive recorder script.'
+}
+Write-Host '[PASS] Interactive recorder contains no direct HTTP request.'
 
 $originalLocalAppData = $env:LOCALAPPDATA
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("documentor-recorder-test-" + [Guid]::NewGuid().ToString('N'))
@@ -62,10 +75,12 @@ try {
     if (Test-Path -LiteralPath $oldPath) { throw 'Expired queue file was not removed.' }
     Write-Host '[PASS] Retention policy removes expired queue files.'
 
+    Get-ChildItem -LiteralPath $global:HomelabDocsRecorderState.QueueDir -Filter '*.json' -File | Remove-Item -Force
     1..100 | ForEach-Object {
         $name = ('quota-test-{0:D3}.json' -f $_)
         [System.IO.File]::WriteAllText((Join-Path $global:HomelabDocsRecorderState.QueueDir $name), '{}', [System.Text.UTF8Encoding]::new($false))
     }
+    $global:HomelabDocsRecorderState.LastQueueScanUtc = [DateTime]::MinValue
     $quotaRejected = $false
     try {
         Write-HomelabDocsCommandEvent -CommandLine 'Get-ChildItem -Force' -Succeeded $true -WorkingDirectory $tempRoot -NativeExitCode $null
@@ -74,7 +89,7 @@ try {
     }
     if (-not $quotaRejected) { throw 'Queue count quota did not reject a new event at capacity.' }
     Write-Host '[PASS] Queue quota rejects new events instead of evicting existing evidence.'
-    Write-Host 'Recorder checks passed. No API requests were sent.'
+    Write-Host 'Recorder checks passed. The harness does not start the uploader or send API requests.'
 }
 finally {
     if ($global:HomelabDocsRecorderState) { Stop-HomelabDocsRecorder }
