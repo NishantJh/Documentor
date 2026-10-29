@@ -6,9 +6,9 @@ Targets include Windows, Proxmox, Unraid, Incus, OpenWrt and Docker-hosted servi
 
 ## Status
 
-Early MVP: authenticated FastAPI event/snapshot ingestion, SQLite persistence, recursive JSON diffs, draft report generation, and an initial Windows inventory collector.
+Early MVP: authenticated FastAPI event/snapshot ingestion, SQLite persistence, recursive JSON diffs, draft report generation, and an initial Windows inventory collector. An opt-in PowerShell command-metadata recorder preview and disposable Docker smoke tests are also present on this development branch. The recorder has not been validated on a real Windows workstation.
 
-Not yet implemented: general desktop recording, complete terminal interception, remote host collectors, automatic classification of reverted experiments, AI reconciliation, or verified recovery automation. Generated reports are drafts, not validated recovery instructions.
+Not yet implemented: output or screenshot capture, remote host collectors, automatic classification of reverted experiments, AI reconciliation, or verified recovery automation. Generated reports are drafts, not validated recovery instructions.
 
 ## Development
 
@@ -31,6 +31,8 @@ Run tests with `pytest`.
 - docs/deployment-proxmox.md
 - docs/github-setup.md
 - docs/security.md
+- docs/testing.md
+- docs/windows-recorder.md
 - docs/roadmap.md
 
 ## Security
