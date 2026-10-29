@@ -10,6 +10,12 @@ jobs:
       - name: Run recorder checks in Windows PowerShell 5.1
         shell: powershell
         run: .\tests\windows\Invoke-RecorderChecks.ps1
+      - name: Run uploader retry and recovery test in Windows PowerShell 5.1
+        shell: powershell
+        run: .\tests\windows\Test-UploaderRetry.ps1
       - name: Run recorder checks in PowerShell 7
         shell: pwsh
         run: .\tests\windows\Invoke-RecorderChecks.ps1
+      - name: Run uploader retry and recovery test in PowerShell 7
+        shell: pwsh
+        run: .\tests\windows\Test-UploaderRetry.ps1
