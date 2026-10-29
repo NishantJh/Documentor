@@ -84,6 +84,10 @@ $global:HomelabDocsRecorderState = @{
     RetentionDays = $retentionDays
     ExcludedPatterns = @($defaultExcludedPatterns) + @($customPatterns)
 }
+$initialQueueFiles = @(Get-ChildItem -LiteralPath $queueDir -Filter '*.json' -File -ErrorAction SilentlyContinue)
+$global:HomelabDocsRecorderState.QueueFileCount = $initialQueueFiles.Count
+$global:HomelabDocsRecorderState.QueueBytes = [long](($initialQueueFiles | Measure-Object -Property Length -Sum).Sum)
+$global:HomelabDocsRecorderState.LastQueueScanUtc = [DateTime]::UtcNow
 
 function global:Protect-HomelabDocsCommand {
     param([Parameter(Mandatory)][string]$CommandLine)
@@ -176,18 +180,24 @@ function global:Get-HomelabDocsUploaderStatus {
 
 function global:Apply-HomelabDocsQueuePolicy {
     $state = $global:HomelabDocsRecorderState
-    $cutoff = [DateTime]::UtcNow.AddDays(-$state.RetentionDays)
-    $files = @(Get-ChildItem -LiteralPath $state.QueueDir -Filter '*.json' -File -ErrorAction SilentlyContinue)
-    foreach ($file in $files) {
-        if ($file.LastWriteTimeUtc -lt $cutoff) {
-            Remove-Item -LiteralPath $file.FullName -Force -ErrorAction SilentlyContinue
+    # Reconcile external queue changes and retention at most every 30 seconds,
+    # not after every command. Cached accounting is conservative between scans.
+    if (([DateTime]::UtcNow - $state.LastQueueScanUtc).TotalSeconds -ge 30) {
+        $cutoff = [DateTime]::UtcNow.AddDays(-$state.RetentionDays)
+        $files = @(Get-ChildItem -LiteralPath $state.QueueDir -Filter '*.json' -File -ErrorAction SilentlyContinue)
+        foreach ($file in $files) {
+            if ($file.LastWriteTimeUtc -lt $cutoff) {
+                Remove-Item -LiteralPath $file.FullName -Force -ErrorAction SilentlyContinue
+            }
         }
+        $remaining = @(Get-ChildItem -LiteralPath $state.QueueDir -Filter '*.json' -File -ErrorAction SilentlyContinue)
+        $state.QueueFileCount = $remaining.Count
+        $state.QueueBytes = [long](($remaining | Measure-Object -Property Length -Sum).Sum)
+        $state.LastQueueScanUtc = [DateTime]::UtcNow
     }
 
-    $remaining = @(Get-ChildItem -LiteralPath $state.QueueDir -Filter '*.json' -File -ErrorAction SilentlyContinue)
-    $totalBytes = [long](($remaining | Measure-Object -Property Length -Sum).Sum)
-    if ($remaining.Count -ge $state.MaxQueuedEvents -or $totalBytes -ge $state.MaxQueueBytes) {
-        throw ("Documentor queue is full ({0} events, {1} bytes). The event was not queued; check recorder status and API connectivity." -f $remaining.Count, $totalBytes)
+    if ($state.QueueFileCount -ge $state.MaxQueuedEvents -or $state.QueueBytes -ge $state.MaxQueueBytes) {
+        throw ("Documentor queue is full ({0} events, {1} bytes). The event was not queued; check recorder status and API connectivity." -f $state.QueueFileCount, $state.QueueBytes)
     }
 }
 
@@ -227,13 +237,14 @@ function global:Write-HomelabDocsCommandEvent {
     if ($encoded.Length -gt $state.MaxQueueBytes) {
         throw 'Documentor event exceeds the configured maximum queue size and was not queued.'
     }
-    $currentBytes = [long]((Get-ChildItem -LiteralPath $state.QueueDir -Filter '*.json' -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum)
-    if (($currentBytes + $encoded.Length) -gt $state.MaxQueueBytes) {
+    if (($state.QueueBytes + $encoded.Length) -gt $state.MaxQueueBytes) {
         throw 'Documentor queue byte quota would be exceeded; the event was not queued.'
     }
     $temporaryPath = "$path.tmp"
     [System.IO.File]::WriteAllText($temporaryPath, $json, [System.Text.UTF8Encoding]::new($false))
     Move-Item -LiteralPath $temporaryPath -Destination $path -Force
+    $state.QueueFileCount++
+    $state.QueueBytes += $encoded.Length
 }
 
 function global:Get-HomelabDocsRecorderStatus {
@@ -241,9 +252,8 @@ function global:Get-HomelabDocsRecorderStatus {
     if (-not $state) {
         return [pscustomobject]@{ Enabled = $false; Paused = $false; QueuedEvents = 0; LastError = $null }
     }
-    $queued = @(Get-ChildItem -LiteralPath $state.QueueDir -Filter '*.json' -File -ErrorAction SilentlyContinue).Count
-    $queueFiles = @(Get-ChildItem -LiteralPath $state.QueueDir -Filter '*.json' -File -ErrorAction SilentlyContinue)
-    $queueBytes = [long](($queueFiles | Measure-Object -Property Length -Sum).Sum)
+    $queued = [int]$state.QueueFileCount
+    $queueBytes = [long]$state.QueueBytes
     [pscustomobject]@{
         Enabled = $state.Enabled
         Paused = $state.Paused
