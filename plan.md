@@ -60,12 +60,12 @@ Build a Windows-first, evidence-backed documentation engine that continuously re
 - [ ] Capture event-driven screenshots, not indiscriminate continuous video by default.
 - [ ] Correlate browser/terminal activity to host, service and task where possible.
 - [ ] Provide pause/stop controls, retention settings, exclusion lists and secret redaction.
-- [ ] **Make command capture non-blocking before routine use.** The prompt hook must only sanitize and atomically enqueue metadata; it must never make HTTP requests, sleep for retry backoff, or wait for an uploader.
+- [x] **Move command capture off the network path.** The prompt hook now queues locally and starts a separate uploader job. The prompt hook must only sanitize and atomically enqueue metadata; it must never make HTTP requests, sleep for retry backoff, or wait for an uploader.
 - [ ] Implement a separate background uploader process that reads the existing DPAPI-protected token from the user's local configuration (never pass the token on a command line), uploads bounded batches, applies request timeouts and retry backoff, and exits after an idle period.
-- [ ] Prevent duplicate uploader processes with a per-user mutex/lock; safely claim queue files so concurrent sessions cannot upload the same file simultaneously. Preserve failed events for retry and use `client_event_id` for server-side idempotency.
+- [x] Prevent duplicate uploader processes with a per-user mutex; safely claim queue files so concurrent sessions cannot upload the same file simultaneously. Preserve failed events for retry and use `client_event_id` for server-side idempotency.
 - [ ] Ensure recorder pause/stop affects capture predictably without corrupting queued events; document whether the uploader drains already queued events after capture is paused or stopped.
-- [ ] Keep queue maintenance cheap on the prompt path: avoid scanning thousands of files on every command; use cached queue accounting and/or rate-limited retention cleanup, with conservative quota enforcement.
-- [ ] Add observable uploader status (running, last success/error, retry-after, queue count/bytes, dropped-event/quota count) without exposing command contents or secrets.
+- [x] Keep queue maintenance cheap on the prompt path: avoid scanning thousands of files on every command; use cached queue accounting and/or rate-limited retention cleanup, with conservative quota enforcement.
+- [x] Add observable uploader status (running, last success/error, retry-after, queue count/bytes, dropped-event/quota count) without exposing command contents or secrets.
 - [ ] Test that API outages, DNS failures, slow responses and expired TLS certificates do not delay PowerShell prompts; verify retries and duplicate prevention end to end. Client event IDs now support idempotent API retries.
 - [ ] Clearly distinguish observed activity from inferred GUI actions.
 
@@ -113,7 +113,6 @@ A procedure is not complete merely because Markdown was generated. It must ident
 
 1. Validate the latest API hardening and migration logic with a manual test run when runner budget permits; do not trigger CI on every push.
 2. Review and test the PowerShell recorder in a disposable Windows session, including redaction, pause/stop, queue retry and idempotent event ingestion.
-3. Prioritize the non-blocking recorder redesign: move all HTTP work into a separate background uploader, remove network calls and retry delays from the prompt hook, and make queue maintenance efficient for large queues.
-4. Run the Windows recorder validation harness in PowerShell 5.1 and PowerShell 7; extend it for byte quotas, invalid configuration, concurrent sessions, worker locking, offline/slow API behavior and upload/retry/idempotency before regular use.
-5. When deployment is possible, install the central API on the Proxmox Debian LXC and test the Windows client plus first inventory snapshot end to end.
-6. Only then expand to remote host collectors and event-to-state reconciliation.
+3. Run the Windows recorder validation harness in PowerShell 5.1 and PowerShell 7; extend it for byte quotas, invalid configuration, concurrent sessions, worker locking, offline/slow API behavior and upload/retry/idempotency before regular use.
+4. When deployment is possible, install the central API on the Proxmox Debian LXC and test the Windows client plus first inventory snapshot end to end.
+5. Only then expand to remote host collectors and event-to-state reconciliation.
