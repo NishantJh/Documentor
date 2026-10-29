@@ -52,7 +52,7 @@ Build a Windows-first, evidence-backed documentation engine that continuously re
 
 ### Stage 1 — Windows recorder
 
-**Current implementation:** an opt-in PowerShell prompt/history recorder preview is in `collector/windows/Enable-HomelabDocsRecorder.ps1`. It records sanitized command metadata, queues events locally and retries uploads. It deliberately does not capture command output or screenshots. It has not yet been validated on a real Windows workstation; do not treat it as production-ready.
+**Current implementation:** an opt-in PowerShell prompt/history recorder preview is in `collector/windows/Enable-HomelabDocsRecorder.ps1`. It records sanitized command metadata and atomically queues it locally; `collector/windows/Send-HomelabDocsQueue.ps1` uploads in a separate background job. It deliberately does not capture command output or screenshots. It has not yet been validated on a real Windows workstation; do not treat it as production-ready.
 - [ ] Install/start reliably at login or boot with least privilege.
 - [ ] Run `tests/windows/Invoke-RecorderChecks.ps1` in Windows PowerShell 5.1 and PowerShell 7; verify command, timestamp, success flag, working directory and session ID.
 - [ ] Design and test optional bounded output capture with explicit consent and robust redaction before enabling it.
@@ -61,9 +61,9 @@ Build a Windows-first, evidence-backed documentation engine that continuously re
 - [ ] Correlate browser/terminal activity to host, service and task where possible.
 - [ ] Provide pause/stop controls, retention settings, exclusion lists and secret redaction.
 - [x] **Move command capture off the network path.** The prompt hook now queues locally and starts a separate uploader job. The prompt hook must only sanitize and atomically enqueue metadata; it must never make HTTP requests, sleep for retry backoff, or wait for an uploader.
-- [ ] Implement a separate background uploader process that reads the existing DPAPI-protected token from the user's local configuration (never pass the token on a command line), uploads bounded batches, applies request timeouts and retry backoff, and exits after an idle period.
-- [x] Prevent duplicate uploader processes with a per-user mutex; safely claim queue files so concurrent sessions cannot upload the same file simultaneously. Preserve failed events for retry and use `client_event_id` for server-side idempotency.
-- [ ] Ensure recorder pause/stop affects capture predictably without corrupting queued events; document whether the uploader drains already queued events after capture is paused or stopped.
+- [x] Implement a separate background uploader job that reads the existing DPAPI-protected token from the user's local configuration (never pass the token on a command line), uploads bounded batches, applies request timeouts and retry backoff, and exits after an idle period.
+- [x] Prevent concurrent uploader jobs with a per-user mutex. One uploader processes the queue at a time; failed events remain queued and `client_event_id` supports server-side idempotency.
+- [x] Ensure pause stops capture and stop restores the prompt; queued events remain available, and an already-running uploader may continue draining them after capture is paused or stopped.
 - [x] Keep queue maintenance cheap on the prompt path: avoid scanning thousands of files on every command; use cached queue accounting and/or rate-limited retention cleanup, with conservative quota enforcement.
 - [x] Add observable uploader status (running, last success/error, retry-after, queue count/bytes, dropped-event/quota count) without exposing command contents or secrets.
 - [ ] Test that API outages, DNS failures, slow responses and expired TLS certificates do not delay PowerShell prompts; verify retries and duplicate prevention end to end. Client event IDs now support idempotent API retries.
@@ -112,7 +112,7 @@ A procedure is not complete merely because Markdown was generated. It must ident
 ## Immediate next tasks
 
 1. Validate the latest API hardening and migration logic with a manual test run when runner budget permits; do not trigger CI on every push.
-2. Review and test the PowerShell recorder in a disposable Windows session, including redaction, pause/stop, queue retry and idempotent event ingestion.
-3. Run the Windows recorder validation harness in PowerShell 5.1 and PowerShell 7; extend it for byte quotas, invalid configuration, concurrent sessions, worker locking, offline/slow API behavior and upload/retry/idempotency before regular use.
+2. Run the Windows recorder validation harness in PowerShell 5.1 and PowerShell 7; extend it for byte quotas, invalid configuration, concurrent sessions, worker locking, offline/slow API behavior and upload/retry/idempotency before regular use.
+3. Test the prompt hook and background job in a disposable Windows session, including pause/stop and retry/defer behavior.
 4. When deployment is possible, install the central API on the Proxmox Debian LXC and test the Windows client plus first inventory snapshot end to end.
 5. Only then expand to remote host collectors and event-to-state reconciliation.
