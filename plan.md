@@ -48,13 +48,16 @@ Build a Windows-first, evidence-backed documentation engine that continuously re
 - [ ] Validate the latest API-hardening changes with the manual test workflow when runner budget permits; earlier branch revisions passed CI.
 - [ ] Run and verify deployment on the Proxmox Debian LXC.
 - [ ] Verify backup and restore of the database.
-- [ ] Verify bounded payloads, timezone-aware timestamps, idempotent event retries, and report escaping on the latest code revision.
+- [x] Add tests for bounded payloads, timezone-aware timestamps, missing/malformed/invalid bearer credentials, idempotent retries and idempotency-key collisions, and report escaping.
+- [ ] Run the expanded Python test suite on the latest code revision.
 
 ### Stage 1 — Windows recorder
 
 **Current implementation:** an opt-in PowerShell prompt/history recorder preview is in `collector/windows/Enable-HomelabDocsRecorder.ps1`. It records sanitized command metadata and atomically queues it locally; `collector/windows/Send-HomelabDocsQueue.ps1` uploads in a separate background job. It deliberately does not capture command output or screenshots. It has not yet been validated on a real Windows workstation; do not treat it as production-ready.
 - [ ] Install/start reliably at login or boot with least privilege.
-- [ ] Run `tests/windows/Invoke-RecorderChecks.ps1` in Windows PowerShell 5.1 and PowerShell 7; verify command, timestamp, success flag, working directory and session ID.
+- [x] Expand `tests/windows/Invoke-RecorderChecks.ps1` to cover both queue-count and aggregate byte quotas; add a `-DisableUploader` switch so recorder checks do not start a background job.
+- [x] Add `tests/windows/Test-UploaderRetry.ps1`, a loopback-only integration test that simulates a temporary API 503 followed by success and checks stable event identity and queue cleanup.
+- [ ] Run both Windows test scripts in Windows PowerShell 5.1 and PowerShell 7 on the latest code revision.
 - [ ] Design and test optional bounded output capture with explicit consent and robust redaction before enabling it.
 - [ ] Support explicit recording sessions for complex GUI work.
 - [ ] Capture event-driven screenshots, not indiscriminate continuous video by default.
@@ -66,7 +69,7 @@ Build a Windows-first, evidence-backed documentation engine that continuously re
 - [x] Ensure pause stops capture and stop restores the prompt; queued events remain available, and an already-running uploader may continue draining them after capture is paused or stopped.
 - [x] Keep queue maintenance cheap on the prompt path: avoid scanning thousands of files on every command; use cached queue accounting and/or rate-limited retention cleanup, with conservative quota enforcement.
 - [x] Add observable uploader status (running, last success/error, retry-after, queue count/bytes, dropped-event/quota count) without exposing command contents or secrets.
-- [ ] Test that API outages, DNS failures, slow responses and expired TLS certificates do not delay PowerShell prompts; verify retries and duplicate prevention end to end. Client event IDs now support idempotent API retries.
+- [ ] Verify retry/recovery integration test passes on both PowerShell versions; separately test DNS failures, slow responses and expired TLS certificates. The test harness now simulates a temporary HTTP 503, but has not yet run on the latest revision.
 - [ ] Clearly distinguish observed activity from inferred GUI actions.
 
 ### Stage 2 — Remote state collectors
@@ -112,7 +115,7 @@ A procedure is not complete merely because Markdown was generated. It must ident
 ## Immediate next tasks
 
 1. Validate the latest API hardening and migration logic with a manual test run when runner budget permits; do not trigger CI on every push.
-2. Run the Windows recorder validation harness in PowerShell 5.1 and PowerShell 7; extend it for byte quotas, invalid configuration, concurrent sessions, worker locking, offline/slow API behavior and upload/retry/idempotency before regular use.
+2. Manually dispatch `windows-recorder-checks` to run the expanded recorder and uploader retry tests in PowerShell 5.1 and PowerShell 7. Review any failures before treating the recorder as validated; then extend coverage for invalid configuration, concurrent sessions, worker locking, offline/slow API behavior and TLS failures.
 3. Test the prompt hook and background job in a disposable Windows session, including pause/stop and retry/defer behavior.
 4. When deployment is possible, install the central API on the Proxmox Debian LXC and test the Windows client plus first inventory snapshot end to end.
 5. Only then expand to remote host collectors and event-to-state reconciliation.
