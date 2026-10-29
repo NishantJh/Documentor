@@ -78,6 +78,7 @@ $global:HomelabDocsRecorderState = @{
     PreviousWorkingDirectory = (Get-Location).Path
     OriginalPrompt = $originalPrompt
     LastError = $null
+    DroppedEvents = 0
     NextRetryUtc = [DateTime]::MinValue
     MaxQueuedEvents = $maxQueuedEvents
     MaxQueueBytes = $maxQueueBytes
@@ -264,6 +265,7 @@ function global:Get-HomelabDocsRecorderStatus {
         RetentionDays = $state.RetentionDays
         SessionId = $state.SessionId
         LastError = $state.LastError
+        DroppedEvents = $state.DroppedEvents
         Uploader = (Get-HomelabDocsUploaderStatus)
         OutputCapture = 'disabled'
     }
@@ -311,6 +313,9 @@ function global:prompt {
                     Start-HomelabDocsUploader
                 } catch {
                     $state.LastError = $_.Exception.Message
+                    if ($state.LastError -match '(?i)queue is full|quota would be exceeded|exceeds the configured maximum queue size') {
+                        $state.DroppedEvents++
+                    }
                 }
             }
         }
