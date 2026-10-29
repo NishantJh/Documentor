@@ -12,12 +12,20 @@ def db_path() -> Path:
 
 def connect() -> sqlite3.Connection:
     path = db_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     conn = sqlite3.connect(path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
+    try:
+        # Restrict the database file on POSIX. The service account should own the
+        # parent directory; do not change permissions on an existing parent path.
+        if os.name == "posix":
+            os.chmod(path, 0o600)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA journal_mode=WAL")
+        return conn
+    except Exception:
+        conn.close()
+        raise
 
 
 def init_db() -> None:
@@ -39,15 +47,23 @@ def init_db() -> None:
 
 def insert_event(event: dict[str, Any]) -> int:
     with connect() as c:
-        cur = c.execute("INSERT INTO events(host_id,event_type,timestamp,session_id,summary,payload,evidence_refs) VALUES(?,?,?,?,?,?,?)", (
-            event["host_id"], event["event_type"], event["timestamp"], event.get("session_id"),
-            event["summary"], json.dumps(event.get("payload", {})), json.dumps(event.get("evidence_refs", []))))
+        cur = c.execute(
+            "INSERT INTO events(host_id,event_type,timestamp,session_id,summary,payload,evidence_refs) VALUES(?,?,?,?,?,?,?)",
+            (
+                event["host_id"], event["event_type"], event["timestamp"], event.get("session_id"),
+                event["summary"], json.dumps(event.get("payload", {}), ensure_ascii=False),
+                json.dumps(event.get("evidence_refs", []), ensure_ascii=False),
+            ),
+        )
         return int(cur.lastrowid)
 
 
 def list_events(host_id: str, limit: int = 100) -> list[dict[str, Any]]:
     with connect() as c:
-        rows = c.execute("SELECT * FROM events WHERE host_id=? ORDER BY timestamp DESC,id DESC LIMIT ?", (host_id, limit)).fetchall()
+        rows = c.execute(
+            "SELECT * FROM events WHERE host_id=? ORDER BY timestamp DESC,id DESC LIMIT ?",
+            (host_id, limit),
+        ).fetchall()
     result = []
     for row in rows:
         item = dict(row)
@@ -59,14 +75,17 @@ def list_events(host_id: str, limit: int = 100) -> list[dict[str, Any]]:
 
 def insert_snapshot(snapshot: dict[str, Any]) -> int:
     with connect() as c:
-        cur = c.execute("INSERT INTO snapshots(host_id,captured_at,source,state) VALUES(?,?,?,?)", (
-            snapshot["host_id"], snapshot["captured_at"], snapshot["source"], json.dumps(snapshot["state"], sort_keys=True)))
+        cur = c.execute(
+            "INSERT INTO snapshots(host_id,captured_at,source,state) VALUES(?,?,?,?)",
+            (
+                snapshot["host_id"], snapshot["captured_at"], snapshot["source"],
+                json.dumps(snapshot["state"], sort_keys=True, ensure_ascii=False),
+            ),
+        )
         return int(cur.lastrowid)
 
 
-def get_snapshot(snapshot_id: int) -> dict[str, Any] | None:
-    with connect() as c:
-        row = c.execute("SELECT * FROM snapshots WHERE id=?", (snapshot_id,)).fetchone()
+def _snapshot_from_row(row: sqlite3.Row | None) -> dict[str, Any] | None:
     if row is None:
         return None
     item = dict(row)
@@ -74,12 +93,26 @@ def get_snapshot(snapshot_id: int) -> dict[str, Any] | None:
     return item
 
 
+def get_snapshot(snapshot_id: int) -> dict[str, Any] | None:
+    with connect() as c:
+        row = c.execute("SELECT * FROM snapshots WHERE id=?", (snapshot_id,)).fetchone()
+    return _snapshot_from_row(row)
+
+
+def previous_snapshot(host_id: str, snapshot_id: int) -> dict[str, Any] | None:
+    """Return the nearest earlier inserted snapshot for this host."""
+    with connect() as c:
+        row = c.execute(
+            "SELECT * FROM snapshots WHERE host_id=? AND id<? ORDER BY id DESC LIMIT 1",
+            (host_id, snapshot_id),
+        ).fetchone()
+    return _snapshot_from_row(row)
+
+
 def latest_snapshots(host_id: str, limit: int = 2) -> list[dict[str, Any]]:
     with connect() as c:
-        rows = c.execute("SELECT * FROM snapshots WHERE host_id=? ORDER BY id DESC LIMIT ?", (host_id, limit)).fetchall()
-    result = []
-    for row in rows:
-        item = dict(row)
-        item["state"] = json.loads(item["state"])
-        result.append(item)
-    return result
+        rows = c.execute(
+            "SELECT * FROM snapshots WHERE host_id=? ORDER BY id DESC LIMIT ?",
+            (host_id, limit),
+        ).fetchall()
+    return [item for item in (_snapshot_from_row(row) for row in rows) if item is not None]
