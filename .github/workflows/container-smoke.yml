@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
 jobs:
   container-smoke:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
