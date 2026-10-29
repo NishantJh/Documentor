@@ -159,7 +159,7 @@ def test_report_renders_untrusted_summary_as_single_line(client):
     assert response.status_code == 200
     report = client.post("/api/v1/reports/synthetic-host", headers=auth())
     assert report.status_code == 200
-    assert "## injected heading" not in report.text
+    assert "\n## injected heading" not in report.text
     assert "safe title ## injected heading" in report.text
 
 
