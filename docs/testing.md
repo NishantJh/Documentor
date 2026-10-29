@@ -16,7 +16,8 @@ All three workflows use `workflow_dispatch` only, so they do not run automatical
 - Two synthetic snapshots can be stored and compared.
 - A Markdown draft report is returned with the expected diff.
 - The application runs as a non-root user with a read-only container root filesystem and dropped Linux capabilities.
-- On Windows, the recorder and uploader scripts parse, custom and built-in redaction checks work, metadata-only events are queued, expiry cleanup works, and the queue-count limit is enforced.
+- On Windows, the recorder and uploader scripts parse, custom and built-in redaction checks work, metadata-only events are queued, expiry cleanup works, and both queue-count and queue-byte limits are enforced.
+- The Windows uploader integration test runs against a loopback-only synthetic HTTP server that returns one temporary `503` response followed by success. It verifies the retry preserves `client_event_id`, the queue file is removed only after success, and the uploader reaches its idle state.
 
 The workflow token is test-only. Never copy it into a real deployment.
 
@@ -64,10 +65,11 @@ A successful container smoke test is not a production deployment or a recovery t
 
 ## Run Windows recorder checks locally
 
-Run the dependency-free recorder checks in separate disposable sessions in both Windows PowerShell 5.1 and PowerShell 7:
+Run the dependency-free recorder checks and uploader retry integration test in separate disposable sessions in both Windows PowerShell 5.1 and PowerShell 7:
 
 ```powershell
 .\tests\windows\Invoke-RecorderChecks.ps1
+.\tests\windows\Test-UploaderRetry.ps1
 ```
 
-The harness refuses to run if a recorder is already enabled in the session. It does not start the uploader or call the API. A workflow definition is not evidence of a passing test; confirm the run result in GitHub Actions.
+The recorder harness refuses to run if a recorder is already enabled in the session and explicitly disables automatic uploader startup while testing. It does not call the API. The separate uploader test uses a loopback-only synthetic server and temporary DPAPI token; it does not contact the real Documentor API. A workflow definition is not evidence of a passing test; confirm the run result in GitHub Actions.
