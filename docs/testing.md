@@ -57,4 +57,4 @@ Run the dependency-free recorder checks on Windows in both Windows PowerShell 5.
 .\tests\windows\Invoke-RecorderChecks.ps1
 ```
 
-The harness uses synthetic commands and a temporary directory, does not call the Documentor API, and checks syntax, secret redaction, metadata-only queueing, expiry cleanup and queue-count enforcement. It has not yet been run in a Windows runtime. Do not treat its presence as evidence of a passing test.
+The harness must run in a separate disposable PowerShell session and refuses to run if a recorder is already enabled. It uses synthetic commands and a temporary directory, does not start the uploader or call the API, and checks both script parsers, prompt/API separation, redaction, metadata-only queueing, expiry cleanup and queue-count enforcement. It has not yet been run in a Windows runtime. Do not treat its presence as evidence of a passing test.
