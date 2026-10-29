@@ -34,6 +34,7 @@ class EventIn(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     host_id: str = Field(min_length=1, max_length=200)
+    client_event_id: str | None = Field(default=None, min_length=1, max_length=100)
     event_type: str = Field(min_length=1, max_length=100)
     timestamp: str | None = Field(default=None, max_length=64)
     session_id: str | None = Field(default=None, max_length=200)
