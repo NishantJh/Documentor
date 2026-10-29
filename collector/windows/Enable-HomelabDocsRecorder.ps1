@@ -120,7 +120,9 @@ function global:Write-HomelabDocsCommandEvent {
     $fileName = '{0}-{1}.json' -f [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ'), $event.client_event_id
     $path = Join-Path $state.QueueDir $fileName
     $json = $event | ConvertTo-Json -Depth 10 -Compress
-    Set-Content -LiteralPath $path -Value $json -Encoding UTF8
+    $temporaryPath = "$path.tmp"
+    [System.IO.File]::WriteAllText($temporaryPath, $json, [System.Text.UTF8Encoding]::new($false))
+    Move-Item -LiteralPath $temporaryPath -Destination $path -Force
 }
 
 function global:Get-HomelabDocsRecorderStatus {
