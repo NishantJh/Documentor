@@ -39,6 +39,7 @@ try {
     $mutex = New-Object System.Threading.Mutex($false, $mutexName)
     try { $ownsMutex = $mutex.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $ownsMutex = $true }
     if (-not $ownsMutex) { exit 0 }
+    Write-UploaderStatus -Status 'starting'
 
     if (-not (Test-Path -LiteralPath $configPath) -or -not (Test-Path -LiteralPath $tokenPath)) {
         Write-UploaderStatus -Status 'not_configured' -LastError 'Client configuration or DPAPI token file is missing.'
