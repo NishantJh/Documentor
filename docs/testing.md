@@ -1,14 +1,14 @@
 # Disposable Test Environment
 
-Documentor can be tested without a Proxmox host or real homelab credentials. The manual `container-smoke` GitHub Actions workflow targets the self-hosted Linux x64 runner, builds the production Dockerfile, starts a container with a throwaway token and synthetic data, and exercises the API. It requires Docker Engine access from that runner. No real homelab endpoint is contacted.
+Documentor can be tested without a Proxmox host or real homelab credentials. The Python `tests` workflow runs automatically on pushes and pull requests using GitHub-hosted Ubuntu runners; it installs the project test dependencies and runs `pytest -q`.
 
-The manual `tests` workflow runs the Python test suite on the self-hosted Linux x64 runner. The manual `windows-recorder-checks` workflow runs the recorder harness in Windows PowerShell 5.1 and PowerShell 7 on the native Windows x64 runner.
+The `container-smoke` workflow is manual-dispatch only and targets the self-hosted Linux x64 runner. It builds the production Dockerfile, starts a container with a throwaway token and synthetic data, and exercises the API. It requires Docker Engine access from that runner. No real homelab endpoint is contacted.
 
-All three workflows use `workflow_dispatch` only, so they do not run automatically on pushes or pull requests. Dispatch them from the GitHub Actions tab when you intend to use the self-hosted machines.
+The `windows-recorder-checks` workflow is also manual-dispatch only. It runs the recorder and uploader harnesses in Windows PowerShell 5.1 and PowerShell 7 on the self-hosted Windows x64 runner. Dispatch these two workflows from the GitHub Actions tab only when you intend to use the persistent self-hosted machines.
 
 ## What CI verifies
 
-- The Python unit/API tests pass.
+- The Python unit/API tests run automatically for pushes and pull requests on GitHub-hosted Ubuntu runners.
 - The Docker image builds and the API starts.
 - The health endpoint responds.
 - Protected endpoints reject requests without a bearer token.
@@ -23,7 +23,7 @@ The workflow token is test-only. Never copy it into a real deployment.
 
 ## Self-hosted runner notes
 
-The Linux runner must have Docker available to the runner account for `container-smoke`. The workflow starts a disposable container named `documentor-ci` and stops it during cleanup. If a previous run is forcibly interrupted, inspect and remove any leftover test container before retrying.
+The Linux runner must have Docker available to the runner account for the manual `container-smoke` workflow. The workflow starts a disposable container named `documentor-ci` and stops it during cleanup. If a previous run is forcibly interrupted, inspect and remove any leftover test container before retrying.
 
 The Windows runner must have Windows PowerShell 5.1 and PowerShell 7 (`pwsh`) installed. The recorder harness uses synthetic data and a temporary directory; it does not start the uploader or call the API.
 
