@@ -104,7 +104,7 @@ Run both checks from the repository root in separate, disposable sessions, in Wi
 .\tests\windows\Test-UploaderRetry.ps1
 ```
 
-The recorder harness uses synthetic data and does not start the uploader. The separate uploader test uses a temporary DPAPI token and a loopback-only synthetic server that returns one temporary failure before succeeding; it verifies retry identity and queue cleanup without contacting the real API. These updated checks have not yet been run on the latest commit, so their presence is not evidence of a pass. See [testing documentation](docs/testing.md) for scope and limitations.
+The recorder harness uses synthetic data and does not start the uploader. The separate uploader test uses a temporary DPAPI token and a loopback-only synthetic server that returns one temporary failure before succeeding; it verifies retry identity and queue cleanup without contacting the real API. Both checks passed in Windows PowerShell 5.1 and PowerShell 7 in the [manual Actions run](https://github.com/NishantJh/Documentor/actions/runs/40929597149) (run attempt 2, tested source commit `d0017ca`). The subsequent branch reconciliation and documentation edits did not change those tested recorder/uploader scripts. See [testing documentation](docs/testing.md) for scope and limitations.
 
 ## Local development
 
