@@ -1,6 +1,7 @@
 """Documentor API. Never executes commands received from collectors."""
 import hmac
 import os
+from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Path, Query
 from fastapi.responses import PlainTextResponse
@@ -56,7 +57,6 @@ def get_events(
 @app.post("/api/v1/snapshots", dependencies=[Depends(require_token)])
 def post_snapshot(snapshot: SnapshotIn):
     data = snapshot.model_dump(mode="json")
-    from datetime import datetime, timezone
     data["captured_at"] = data["captured_at"] or datetime.now(timezone.utc).isoformat()
     snapshot_id = db.insert_snapshot(data)
     return {"id": snapshot_id, "stored": True}
