@@ -1,7 +1,6 @@
 """Documentor API. Never executes commands received from collectors."""
 import hmac
 import os
-from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Path, Query
 from fastapi.responses import PlainTextResponse
@@ -39,8 +38,10 @@ def health():
 @app.post("/api/v1/events", dependencies=[Depends(require_token)])
 def post_event(event: EventIn):
     data = event.model_dump(mode="json")
-    data["timestamp"] = data["timestamp"] or datetime.now(timezone.utc).isoformat()
-    event_id = db.insert_event(data)
+    try:
+        event_id = db.insert_event(data)
+    except db.IdempotencyConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return {"id": event_id, "stored": True}
 
 
@@ -55,6 +56,7 @@ def get_events(
 @app.post("/api/v1/snapshots", dependencies=[Depends(require_token)])
 def post_snapshot(snapshot: SnapshotIn):
     data = snapshot.model_dump(mode="json")
+    from datetime import datetime, timezone
     data["captured_at"] = data["captured_at"] or datetime.now(timezone.utc).isoformat()
     snapshot_id = db.insert_snapshot(data)
     return {"id": snapshot_id, "stored": True}
