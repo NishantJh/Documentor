@@ -76,3 +76,66 @@ def insert_event(event: dict[str, Any]) -> int:
                 return int(row["id"])
         raise sqlite3.IntegrityError("Event insert was ignored without a matching idempotency key")
 
+
+def list_events(host_id: str, limit: int = 100) -> list[dict[str, Any]]:
+    with connect() as c:
+        rows = c.execute(
+            "SELECT * FROM events WHERE host_id=? ORDER BY timestamp DESC,id DESC LIMIT ?",
+            (host_id, limit),
+        ).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["payload"] = json.loads(item["payload"])
+        item["evidence_refs"] = json.loads(item["evidence_refs"])
+        result.append(item)
+    return result
+
+
+def insert_snapshot(snapshot: dict[str, Any]) -> int:
+    with connect() as c:
+        cur = c.execute(
+            "INSERT INTO snapshots(host_id,captured_at,source,state) VALUES(?,?,?,?)",
+            (
+                snapshot["host_id"], snapshot["captured_at"], snapshot["source"],
+                json.dumps(snapshot["state"], sort_keys=True, ensure_ascii=False),
+            ),
+        )
+        return int(cur.lastrowid)
+
+
+def get_snapshot(snapshot_id: int) -> dict[str, Any] | None:
+    with connect() as c:
+        row = c.execute("SELECT * FROM snapshots WHERE id=?", (snapshot_id,)).fetchone()
+    if row is None:
+        return None
+    item = dict(row)
+    item["state"] = json.loads(item["state"])
+    return item
+
+
+def previous_snapshot(host_id: str, snapshot_id: int) -> dict[str, Any] | None:
+    with connect() as c:
+        row = c.execute(
+            "SELECT * FROM snapshots WHERE host_id=? AND id<? ORDER BY id DESC LIMIT 1",
+            (host_id, snapshot_id),
+        ).fetchone()
+    if row is None:
+        return None
+    item = dict(row)
+    item["state"] = json.loads(item["state"])
+    return item
+
+
+def latest_snapshots(host_id: str, limit: int = 2) -> list[dict[str, Any]]:
+    with connect() as c:
+        rows = c.execute(
+            "SELECT * FROM snapshots WHERE host_id=? ORDER BY id DESC LIMIT ?",
+            (host_id, limit),
+        ).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["state"] = json.loads(item["state"])
+        result.append(item)
+    return result
