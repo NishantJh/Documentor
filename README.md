@@ -14,7 +14,7 @@ Target systems include Windows, Proxmox, Unraid, Incus, OpenWrt and Docker-hoste
 - **Markdown report drafts:** creates draft documentation from recorded data; generated content is not automatically treated as verified.
 - **Windows inventory collector:** submits a bounded inventory snapshot covering OS/computer details, BIOS, local disks, network configuration, running services and installed applications.
 - **Opt-in PowerShell recorder preview:** records sanitized command metadata for the current PowerShell session, including host/session IDs, timestamp, prior working directory and completion indicators. It does not capture command output, screenshots, browser activity or GUI actions.
-- **Local queue and background uploader:** the interactive recorder queues JSON event files locally; a separate PowerShell background job uploads batches, with a per-user mutex, request timeout and retry/defer behaviour.
+- **Local queue and background uploader:** the interactive recorder queues JSON event files locally; a separate PowerShell background job uploads up to 20 queued events per pass as individual HTTP requests, with a per-user mutex, request timeout and retry/defer behaviour.
 - **Queue safeguards:** configurable event/byte limits, retention and additive custom redaction patterns. The queue does not evict newer events to make room.
 - **API input hardening:** bounded payload sizes/depth, strict schemas, timezone-aware timestamps, idempotent event retries and Markdown output sanitization.
 - **Deployment and validation documentation:** includes a Proxmox Debian LXC deployment guide, security notes and Windows recorder/uploader validation harnesses.
@@ -127,7 +127,7 @@ Run the Python tests with:
 pytest
 ```
 
-Do not assume the latest branch passes tests unless you have run them on that revision. GitHub Actions are configured for manual dispatch during development to avoid unnecessary runner usage.
+The Python test workflow runs automatically on pushes and pull requests using GitHub-hosted Ubuntu runners. The container smoke test and Windows recorder checks remain manual-dispatch workflows on the self-hosted Linux and Windows runners respectively, avoiding unnecessary use of persistent homelab runner machines.
 
 ## Documentation
 
