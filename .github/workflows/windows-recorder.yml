@@ -1,12 +1,26 @@
 name: windows-recorder-checks
+
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or ref containing the Windows recorder tests
+        required: true
+        default: feat/cloud-smoke-tests
+        type: string
+
+permissions:
+  contents: read
+
 jobs:
   recorder-checks:
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out selected ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: Run recorder checks in Windows PowerShell 5.1
         shell: powershell
         run: .\tests\windows\Invoke-RecorderChecks.ps1
