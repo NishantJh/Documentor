@@ -7,7 +7,12 @@ if (-not (Test-Path $configPath) -or -not (Test-Path $tokenPath)) {
     throw 'Client is not configured. Run Set-HomelabDocsClient.ps1 first.'
 }
 $config = Get-Content -Raw -Path $configPath | ConvertFrom-Json
-$api = [string]$config.api_url
+$api = ([string]$config.api_url).TrimEnd('/')
+if ([string]::IsNullOrWhiteSpace($api)) { throw 'The configured Documentor API URL is empty.' }
+$apiUri = [Uri]$api
+if (-not $apiUri.IsAbsoluteUri -or ($apiUri.Scheme -ne 'https' -and $apiUri.Host -notin @('localhost', '127.0.0.1', '::1'))) {
+    throw 'Documentor inventory uploads require HTTPS for remote connections. HTTP is allowed only for loopback development.'
+}
 $secureToken = Get-Content -Raw -Path $tokenPath | ConvertTo-SecureString
 $tokenPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureToken)
 try { $token = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($tokenPtr) }
