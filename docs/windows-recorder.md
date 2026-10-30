@@ -87,7 +87,7 @@ A dependency-free Windows test harness is provided. From the repository root, ru
 .\tests\windows\Invoke-RecorderChecks.ps1
 ```
 
-It parses the recorder and exercises built-in/custom redaction, metadata-only queueing, expiry cleanup and count-quota behavior using synthetic temporary files. It does not send API requests. It has been added to the repository but has **not yet been executed** in either PowerShell runtime. These checks do not replace a live API integration test.
+It parses the recorder and exercises built-in/custom redaction, metadata-only queueing, expiry cleanup and count-quota behavior using synthetic temporary files. It does not send API requests. It passed in Windows PowerShell 5.1 and PowerShell 7 in [GitHub Actions](https://github.com/NishantJh/Documentor/actions/runs/40929597149) (run attempt 2, source commit `d0017ca`). The later branch reconciliation did not change the recorder harness or uploader scripts. These checks do not replace a live API integration test.
 
 ## Next recorder work
 
