@@ -260,6 +260,37 @@ def test_idempotency_key_collision_returns_conflict_without_overwriting(client):
     assert events[0]["payload"] == {"value": "original"}
 
 
+
+def test_migrates_legacy_global_idempotency_index_to_host_scoped_index(client):
+    from homelab_docs import db
+
+    with db.connect() as connection:
+        connection.execute("DROP INDEX idx_events_host_client_event_id")
+        connection.execute(
+            "CREATE UNIQUE INDEX idx_events_client_event_id "
+            "ON events(client_event_id) WHERE client_event_id IS NOT NULL"
+        )
+
+    db.init_db()
+
+    event = {
+        "client_event_id": "legacy-index-migration-event",
+        "host_id": "migration-host-one",
+        "event_type": "powershell_command",
+        "summary": "Migration test",
+        "payload": {},
+    }
+    first = client.post("/api/v1/events", headers=auth(), json=event)
+    second = client.post(
+        "/api/v1/events",
+        headers=auth(),
+        json={**event, "host_id": "migration-host-two"},
+    )
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["id"] != second.json()["id"]
+
+
 def test_rejects_naive_event_timestamp(client):
     response = client.post(
         "/api/v1/events",
