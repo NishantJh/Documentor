@@ -39,8 +39,10 @@ def health():
 @app.post("/api/v1/events", dependencies=[Depends(require_token)])
 def post_event(event: EventIn):
     data = event.model_dump(mode="json")
-    data["timestamp"] = data["timestamp"] or datetime.now(timezone.utc).isoformat()
-    event_id = db.insert_event(data)
+    try:
+        event_id = db.insert_event(data)
+    except db.IdempotencyConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return {"id": event_id, "stored": True}
 
 

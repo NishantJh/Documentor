@@ -2,8 +2,13 @@
 import json
 import os
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+
+class IdempotencyConflictError(Exception):
+    """An idempotency key was reused for a different event."""
 
 
 def db_path() -> Path:
@@ -47,34 +52,57 @@ def init_db() -> None:
         columns = {row["name"] for row in c.execute("PRAGMA table_info(events)").fetchall()}
         if "client_event_id" not in columns:
             c.execute("ALTER TABLE events ADD COLUMN client_event_id TEXT")
+
+        # Older versions enforced global uniqueness. Replace that constraint with
+        # host-scoped uniqueness so independent collectors cannot collide.
+        c.execute("DROP INDEX IF EXISTS idx_events_client_event_id")
         c.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_events_client_event_id "
-            "ON events(client_event_id) WHERE client_event_id IS NOT NULL"
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_events_host_client_event_id "
+            "ON events(host_id, client_event_id) WHERE client_event_id IS NOT NULL"
         )
 
 
 def insert_event(event: dict[str, Any]) -> int:
     client_event_id = event.get("client_event_id")
+    timestamp = event.get("timestamp") or datetime.now(timezone.utc).isoformat()
+    payload_json = json.dumps(event.get("payload", {}), ensure_ascii=False, sort_keys=True)
+    evidence_refs_json = json.dumps(event.get("evidence_refs", []), ensure_ascii=False)
+    values = (
+        client_event_id, event["host_id"], event["event_type"], timestamp,
+        event.get("session_id"), event["summary"], payload_json, evidence_refs_json,
+    )
+
     with connect() as c:
-        cur = c.execute(
-            "INSERT OR IGNORE INTO events(client_event_id,host_id,event_type,timestamp,session_id,summary,payload,evidence_refs) "
-            "VALUES(?,?,?,?,?,?,?,?)",
-            (
-                client_event_id, event["host_id"], event["event_type"], event["timestamp"],
-                event.get("session_id"), event["summary"],
-                json.dumps(event.get("payload", {}), ensure_ascii=False),
-                json.dumps(event.get("evidence_refs", []), ensure_ascii=False),
-            ),
-        )
-        if cur.rowcount == 1:
+        try:
+            cur = c.execute(
+                "INSERT INTO events(client_event_id,host_id,event_type,timestamp,session_id,summary,payload,evidence_refs) "
+                "VALUES(?,?,?,?,?,?,?,?)",
+                values,
+            )
             return int(cur.lastrowid)
-        if client_event_id:
+        except sqlite3.IntegrityError:
+            if not client_event_id:
+                raise
             row = c.execute(
-                "SELECT id FROM events WHERE client_event_id=?", (client_event_id,)
+                "SELECT * FROM events WHERE host_id=? AND client_event_id=?",
+                (event["host_id"], client_event_id),
             ).fetchone()
-            if row is not None:
+            if row is None:
+                raise
+
+            same_event = (
+                row["event_type"] == event["event_type"]
+                and (event.get("timestamp") is None or row["timestamp"] == timestamp)
+                and row["session_id"] == event.get("session_id")
+                and row["summary"] == event["summary"]
+                and json.loads(row["payload"]) == json.loads(payload_json)
+                and json.loads(row["evidence_refs"]) == json.loads(evidence_refs_json)
+            )
+            if same_event:
                 return int(row["id"])
-        raise sqlite3.IntegrityError("Event insert was ignored without a matching idempotency key")
+            raise IdempotencyConflictError(
+                "client_event_id has already been used for a different event on this host"
+            )
 
 
 def list_events(host_id: str, limit: int = 100) -> list[dict[str, Any]]:
