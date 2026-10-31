@@ -210,7 +210,26 @@ def test_retries_with_same_client_event_id_are_idempotent(client):
     assert len(response.json()["events"]) == 1
 
 
-def test_idempotency_key_collision_does_not_overwrite_original_event(client):
+def test_same_client_event_id_is_independent_across_hosts(client):
+    event = {
+        "client_event_id": "same-local-event-id",
+        "host_id": "host-one",
+        "event_type": "powershell_command",
+        "summary": "Command from host one",
+        "payload": {"value": "one"},
+    }
+    first = client.post("/api/v1/events", headers=auth(), json=event)
+    second = client.post(
+        "/api/v1/events",
+        headers=auth(),
+        json={**event, "host_id": "host-two", "summary": "Command from host two", "payload": {"value": "two"}},
+    )
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["id"] != second.json()["id"]
+
+
+def test_idempotency_key_collision_returns_conflict_without_overwriting(client):
     original = {
         "client_event_id": "recorder-event-collision",
         "host_id": "synthetic-host",
@@ -225,8 +244,10 @@ def test_idempotency_key_collision_does_not_overwrite_original_event(client):
     }
     first = client.post("/api/v1/events", headers=auth(), json=original)
     retry = client.post("/api/v1/events", headers=auth(), json=conflicting_retry)
-    assert first.status_code == retry.status_code == 200
-    assert first.json()["id"] == retry.json()["id"]
+
+    assert first.status_code == 200
+    assert retry.status_code == 409
+    assert "different event" in retry.json()["detail"]
 
     listed = client.get(
         "/api/v1/events",
@@ -237,6 +258,37 @@ def test_idempotency_key_collision_does_not_overwrite_original_event(client):
     assert len(events) == 1
     assert events[0]["summary"] == "Original event"
     assert events[0]["payload"] == {"value": "original"}
+
+
+
+def test_migrates_legacy_global_idempotency_index_to_host_scoped_index(client):
+    from homelab_docs import db
+
+    with db.connect() as connection:
+        connection.execute("DROP INDEX idx_events_host_client_event_id")
+        connection.execute(
+            "CREATE UNIQUE INDEX idx_events_client_event_id "
+            "ON events(client_event_id) WHERE client_event_id IS NOT NULL"
+        )
+
+    db.init_db()
+
+    event = {
+        "client_event_id": "legacy-index-migration-event",
+        "host_id": "migration-host-one",
+        "event_type": "powershell_command",
+        "summary": "Migration test",
+        "payload": {},
+    }
+    first = client.post("/api/v1/events", headers=auth(), json=event)
+    second = client.post(
+        "/api/v1/events",
+        headers=auth(),
+        json={**event, "host_id": "migration-host-two"},
+    )
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["id"] != second.json()["id"]
 
 
 def test_rejects_naive_event_timestamp(client):
