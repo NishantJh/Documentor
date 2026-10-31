@@ -49,7 +49,7 @@ Build a Windows-first, evidence-backed documentation engine that continuously re
 - [ ] Run and verify deployment on the Proxmox Debian LXC.
 - [ ] Verify backup and restore of the database.
 - [x] Add tests for bounded payloads, timezone-aware timestamps, missing/malformed/invalid bearer credentials, idempotent retries and idempotency-key collisions, and report escaping.
-- [ ] Run the expanded Python test suite on the latest code revision.
+- [x] Run the expanded Python test suite on the latest PR revision (20 passed, no warnings; GitHub Actions run 41196037774).
 
 ### Stage 1 — Windows recorder
 
@@ -114,8 +114,8 @@ A procedure is not complete merely because Markdown was generated. It must ident
 
 ## Immediate next tasks
 
-1. Validate the latest API hardening and migration logic with a manual test run when runner budget permits; do not trigger CI on every push.
-2. Manually dispatch `windows-recorder-checks` to run the expanded recorder and uploader retry tests in PowerShell 5.1 and PowerShell 7. Review any failures before treating the recorder as validated; then extend coverage for invalid configuration, concurrent sessions, worker locking, offline/slow API behavior and TLS failures.
-3. Test the prompt hook and background job in a disposable Windows session, including pause/stop and retry/defer behavior.
+1. Manually dispatch `windows-recorder-checks` against the current PR head to verify the pinned checkout action and run both recorder/uploader harnesses in PowerShell 5.1 and PowerShell 7. Review failures before treating the recorder as validated.
+2. Manually dispatch `container-smoke` against the current PR head to verify the Docker image and API end to end on the self-hosted Linux runner.
+3. Test the prompt hook and background job in a disposable Windows session, including pause/stop and retry/defer behavior; extend coverage for invalid configuration, concurrent sessions, worker locking, offline/slow API behavior and TLS failures.
 4. When deployment is possible, install the central API on the Proxmox Debian LXC and test the Windows client plus first inventory snapshot end to end.
 5. Only then expand to remote host collectors and event-to-state reconciliation.
