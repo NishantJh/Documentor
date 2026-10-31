@@ -1,6 +1,6 @@
 # Disposable Test Environment
 
-Documentor can be tested without a Proxmox host or real homelab credentials. The Python `tests` workflow runs automatically on pushes and pull requests using GitHub-hosted Ubuntu runners; it installs the project test dependencies and runs `pytest -q`.
+Documentor can be tested without a Proxmox host or real homelab credentials. The Python `tests` workflow runs on pull requests targeting `main` and pushes to `main` using GitHub-hosted Ubuntu runners. Feature-branch changes are validated through the pull request workflow, avoiding duplicate push and pull-request runs. It installs the project test dependencies and runs `pytest -q`.
 
 The `container-smoke` workflow is manual-dispatch only and targets the self-hosted Linux x64 runner. It builds the production Dockerfile, starts a container with a throwaway token and synthetic data, and exercises the API. It requires Docker Engine access from that runner. No real homelab endpoint is contacted.
 
@@ -19,7 +19,7 @@ The `windows-recorder-checks` workflow is also manual-dispatch only. It runs the
 - On Windows, the recorder and uploader scripts parse, custom and built-in redaction checks work, metadata-only events are queued, expiry cleanup works, and both queue-count and queue-byte limits are enforced.
 - The Windows uploader integration test runs against a loopback-only synthetic HTTP server that returns one temporary `503` response followed by success. It verifies the retry preserves `client_event_id`, the queue file is removed only after success, and the uploader reaches its idle state.
 
-The workflow token is test-only. Never copy it into a real deployment.
+The container workflow generates a fresh, masked test token for each run. The token is test-only; never copy it into a real deployment.
 
 ## Self-hosted runner notes
 
