@@ -19,35 +19,42 @@ jobs:
       - name: Start disposable test container
         run: |
           token="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          container_name="documentor-ci-${GITHUB_RUN_ID}"
           echo "::add-mask::$token"
           echo "HOMELAB_DOCS_API_TOKEN=$token" >> "$GITHUB_ENV"
+          echo "DOCUMENTOR_CI_CONTAINER=$container_name" >> "$GITHUB_ENV"
+          echo "DOCUMENTOR_URL=" >> "$GITHUB_ENV"
+          export HOMELAB_DOCS_API_TOKEN="$token"
           docker run --detach --rm \
-            --name documentor-ci \
-            --publish 127.0.0.1:8765:8765 \
+            --name "$container_name" \
+            --publish 127.0.0.1::8765 \
             --read-only \
             --tmpfs /tmp:rw,noexec,nosuid,size=16m \
             --cap-drop ALL \
             --security-opt no-new-privileges:true \
-            --env HOMELAB_DOCS_API_TOKEN="$token" \
+            --env HOMELAB_DOCS_API_TOKEN \
             --env HOMELAB_DOCS_DB=/tmp/homelab.sqlite3 \
             documentor:ci
+          port="$(docker port "$container_name" 8765/tcp | sed 's/.*://')"
+          test -n "$port"
+          echo "DOCUMENTOR_URL=http://127.0.0.1:$port" >> "$GITHUB_ENV"
       - name: Wait for API health
         run: |
           for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:8765/health; then
+            if curl --fail --silent "$DOCUMENTOR_URL/health"; then
               exit 0
             fi
             sleep 2
           done
-          docker logs documentor-ci
+          docker logs "$DOCUMENTOR_CI_CONTAINER"
           exit 1
       - name: Exercise API end to end with synthetic data
         run: bash scripts/smoke-test.sh
       - name: Verify container stayed healthy
         if: always()
         run: |
-          docker inspect --format='status={{.State.Status}} exit={{.State.ExitCode}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' documentor-ci || true
-          docker logs documentor-ci || true
+          docker inspect --format='status={{.State.Status}} exit={{.State.ExitCode}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$DOCUMENTOR_CI_CONTAINER" || true
+          docker logs "$DOCUMENTOR_CI_CONTAINER" || true
       - name: Stop disposable container
         if: always()
-        run: docker stop documentor-ci || true
+        run: docker stop "$DOCUMENTOR_CI_CONTAINER" || true
