@@ -127,7 +127,7 @@ Run the Python tests with:
 pytest
 ```
 
-The Python test workflow runs automatically on pushes and pull requests using GitHub-hosted Ubuntu runners. The container smoke test and Windows recorder checks remain manual-dispatch workflows on the self-hosted Linux and Windows runners respectively, avoiding unnecessary use of persistent homelab runner machines.
+The Python test workflow runs on pull requests targeting `main` and pushes to `main`, using GitHub-hosted Ubuntu runners. Feature-branch changes are validated through the pull request workflow; this avoids running the same suite twice on every branch push. The container smoke test and Windows recorder checks remain manual-dispatch workflows on the self-hosted Linux and Windows runners respectively, avoiding unnecessary use of persistent homelab runner machines.
 
 ## Documentation
 
