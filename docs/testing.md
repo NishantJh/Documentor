@@ -23,7 +23,7 @@ The container workflow generates a fresh, masked test token for each run. The to
 
 ## Self-hosted runner notes
 
-The Linux runner must have Docker available to the runner account for the manual `container-smoke` workflow. The workflow starts a disposable container named `documentor-ci` and stops it during cleanup. If a previous run is forcibly interrupted, inspect and remove any leftover test container before retrying.
+The Linux runner must have Docker available to the runner account for the manual `container-smoke` workflow. Each run uses a unique container name and a dynamically assigned loopback host port, then stops the container during cleanup. If a run is forcibly interrupted, its uniquely named container may remain; inspect and remove it before retrying.
 
 The Windows runner must have Windows PowerShell 5.1 and PowerShell 7 (`pwsh`) installed. The recorder harness uses synthetic data and a temporary directory; it does not start the uploader or call the API.
 
