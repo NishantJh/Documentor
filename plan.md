@@ -45,18 +45,31 @@ Build a Windows-first, evidence-backed documentation engine that continuously re
 - [x] Add conservative Markdown draft generation.
 - [x] Add initial Windows inventory client.
 - [x] Add initial CI test workflow.
-- [ ] Confirm current CI is green for the latest commit.
+- [ ] Validate the latest API-hardening changes with the manual test workflow when runner budget permits; earlier branch revisions passed CI.
 - [ ] Run and verify deployment on the Proxmox Debian LXC.
 - [ ] Verify backup and restore of the database.
+- [x] Add tests for bounded payloads, timezone-aware timestamps, missing/malformed/invalid bearer credentials, idempotent retries and idempotency-key collisions, and report escaping.
+- [x] Run the expanded Python test suite on the latest PR revision (20 passed, no warnings; GitHub Actions run 41196037774).
 
 ### Stage 1 — Windows recorder
+
+**Current implementation:** an opt-in PowerShell prompt/history recorder preview is in `collector/windows/Enable-HomelabDocsRecorder.ps1`. It records sanitized command metadata and atomically queues it locally; `collector/windows/Send-HomelabDocsQueue.ps1` uploads in a separate background job. It deliberately does not capture command output or screenshots. It has not yet been validated on a real Windows workstation; do not treat it as production-ready.
 - [ ] Install/start reliably at login or boot with least privilege.
-- [ ] Record PowerShell sessions using supported logging; capture command, timestamp, exit status, working directory, bounded output and session ID.
+- [x] Expand `tests/windows/Invoke-RecorderChecks.ps1` to cover both queue-count and aggregate byte quotas; add a `-DisableUploader` switch so recorder checks do not start a background job.
+- [x] Add `tests/windows/Test-UploaderRetry.ps1`, a loopback-only integration test that simulates a temporary API 503 followed by success and checks stable event identity and queue cleanup.
+- [ ] Run both Windows test scripts in Windows PowerShell 5.1 and PowerShell 7 on the latest code revision.
+- [ ] Design and test optional bounded output capture with explicit consent and robust redaction before enabling it.
 - [ ] Support explicit recording sessions for complex GUI work.
 - [ ] Capture event-driven screenshots, not indiscriminate continuous video by default.
 - [ ] Correlate browser/terminal activity to host, service and task where possible.
 - [ ] Provide pause/stop controls, retention settings, exclusion lists and secret redaction.
-- [ ] Submit events reliably with local queueing and retry.
+- [x] **Move command capture off the network path.** The prompt hook now queues locally and starts a separate uploader job. The prompt hook must only sanitize and atomically enqueue metadata; it must never make HTTP requests, sleep for retry backoff, or wait for an uploader.
+- [x] Implement a separate background uploader job that reads the existing DPAPI-protected token from the user's local configuration (never pass the token on a command line), uploads bounded batches, applies request timeouts and retry backoff, and exits after an idle period.
+- [x] Prevent concurrent uploader jobs with a per-user mutex. One uploader processes the queue at a time; failed events remain queued and `client_event_id` supports server-side idempotency.
+- [x] Ensure pause stops capture and stop restores the prompt; queued events remain available, and an already-running uploader may continue draining them after capture is paused or stopped.
+- [x] Keep queue maintenance cheap on the prompt path: avoid scanning thousands of files on every command; use cached queue accounting and/or rate-limited retention cleanup, with conservative quota enforcement.
+- [x] Add observable uploader status (running, last success/error, retry-after, queue count/bytes, dropped-event/quota count) without exposing command contents or secrets.
+- [ ] Verify retry/recovery integration test passes on both PowerShell versions; separately test DNS failures, slow responses and expired TLS certificates. The test harness now simulates a temporary HTTP 503, but has not yet run on the latest revision.
 - [ ] Clearly distinguish observed activity from inferred GUI actions.
 
 ### Stage 2 — Remote state collectors
@@ -101,8 +114,8 @@ A procedure is not complete merely because Markdown was generated. It must ident
 
 ## Immediate next tasks
 
-1. Confirm CI on the latest source revision and fix issues.
-2. Review and harden API authentication, input validation, storage permissions and deployment instructions.
-3. Deploy to the dedicated Proxmox Debian LXC with persistent storage and off-host backup.
-4. Test Windows client authentication and first inventory snapshot end to end.
-5. Implement the Windows session/event collector before expanding remote collectors.
+1. Manually dispatch `windows-recorder-checks` against the current PR head to verify the pinned checkout action and run both recorder/uploader harnesses in PowerShell 5.1 and PowerShell 7. Review failures before treating the recorder as validated.
+2. Manually dispatch `container-smoke` against the current PR head to verify the Docker image and API end to end on the self-hosted Linux runner.
+3. Test the prompt hook and background job in a disposable Windows session, including pause/stop and retry/defer behavior; extend coverage for invalid configuration, concurrent sessions, worker locking, offline/slow API behavior and TLS failures.
+4. When deployment is possible, install the central API on the Proxmox Debian LXC and test the Windows client plus first inventory snapshot end to end.
+5. Only then expand to remote host collectors and event-to-state reconciliation.
