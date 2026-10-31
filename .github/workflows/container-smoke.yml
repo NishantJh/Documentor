@@ -1,18 +1,26 @@
 name: container-smoke
+
 on:
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   container-smoke:
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Build isolated test image
         run: docker build --tag documentor:ci .
       - name: Start disposable test container
-        env:
-          HOMELAB_DOCS_API_TOKEN: ci-only-throwaway-token-not-for-production-0123456789
         run: |
+          token="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          echo "::add-mask::$token"
+          echo "HOMELAB_DOCS_API_TOKEN=$token" >> "$GITHUB_ENV"
           docker run --detach --rm \
             --name documentor-ci \
             --publish 127.0.0.1:8765:8765 \
@@ -20,7 +28,7 @@ jobs:
             --tmpfs /tmp:rw,noexec,nosuid,size=16m \
             --cap-drop ALL \
             --security-opt no-new-privileges:true \
-            --env HOMELAB_DOCS_API_TOKEN \
+            --env HOMELAB_DOCS_API_TOKEN="$token" \
             --env HOMELAB_DOCS_DB=/tmp/homelab.sqlite3 \
             documentor:ci
       - name: Wait for API health
@@ -34,8 +42,6 @@ jobs:
           docker logs documentor-ci
           exit 1
       - name: Exercise API end to end with synthetic data
-        env:
-          HOMELAB_DOCS_API_TOKEN: ci-only-throwaway-token-not-for-production-0123456789
         run: bash scripts/smoke-test.sh
       - name: Verify container stayed healthy
         if: always()
