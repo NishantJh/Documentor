@@ -23,7 +23,6 @@ jobs:
           echo "::add-mask::$token"
           echo "HOMELAB_DOCS_API_TOKEN=$token" >> "$GITHUB_ENV"
           echo "DOCUMENTOR_CI_CONTAINER=$container_name" >> "$GITHUB_ENV"
-          echo "DOCUMENTOR_URL=" >> "$GITHUB_ENV"
           export HOMELAB_DOCS_API_TOKEN="$token"
           docker run --detach --rm \
             --name "$container_name" \
