@@ -1,6 +1,8 @@
 """Documentor API. Never executes commands received from collectors."""
 import hmac
 import os
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Path, Query
@@ -11,12 +13,13 @@ from .diffing import diff_values
 from .reports import render_report
 from .schemas import EventIn, SnapshotIn
 
-app = FastAPI(title="Documentor Homelab API", version="0.1.0")
-
-
-@app.on_event("startup")
-def startup() -> None:
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     db.init_db()
+    yield
+
+
+app = FastAPI(title="Documentor Homelab API", version="0.1.0", lifespan=lifespan)
 
 
 def require_token(authorization: str | None = Header(default=None)) -> None:
